@@ -13,8 +13,7 @@ import (
 	"github.com/shouni/go-web-exact/pkg/httpclient"
 )
 
-// BacklogClient is the API client for Backlog.
-// NOTE: BacklogClient から BacklogNotifier に名称を変更
+// BacklogNotifier は Backlog 課題登録用の API クライアントです。
 type BacklogNotifier struct {
 	client  httpclient.HTTPClient // 汎用クライアント (リトライ機能込み)
 	baseURL string                // 例: https://your-space.backlog.jp/api/v2
@@ -22,13 +21,13 @@ type BacklogNotifier struct {
 }
 
 // BacklogIssuePayload は課題登録API (/issues) に必要なペイロードです。
+// 💡 修正: IssueTypeID と PriorityID を再導入
 type BacklogIssuePayload struct {
 	ProjectID   int    `json:"projectId"`
 	Summary     string `json:"summary"`
 	Description string `json:"description"`
-	// Backlogの課題登録に必要なその他のフィールド (IssueTypeID, PriorityIDなど) は、
-	// CLI側で環境変数やフラグから受け取り、ここに含める必要があります。
-	// 今回は簡易化のため省略しますが、実際の運用では必須です。
+	IssueTypeID int    `json:"issueTypeId"` // 必須
+	PriorityID  int    `json:"priorityId"`  // 必須
 }
 
 // BacklogErrorResponse はBacklog APIが返す一般的なエラー構造体です。
@@ -56,15 +55,13 @@ func cleanStringFromEmojis(s string) string {
 }
 
 // NewBacklogNotifier はBacklogNotifierを初期化します。
-// 💡 HTTPClient を受け取るように変更
+// 💡 修正: issueTypeID, priorityID を構造体に持たせず、後続の SendIssue に渡す設計とするため、シグネチャは維持
 func NewBacklogNotifier(client httpclient.HTTPClient, spaceURL string, apiKey string) (*BacklogNotifier, error) {
 	if spaceURL == "" || apiKey == "" {
 		return nil, errors.New("BACKLOG_SPACE_URL および BACKLOG_API_KEY の設定が必要です")
 	}
 
 	trimmedURL := strings.TrimRight(spaceURL, "/")
-	// /api/v2 は APIキーがクエリパラメータで渡されるため、ベースURLには含めない設計も可能ですが、
-	// 流用元の設計に合わせてベースURLに含めます。
 	apiURL := trimmedURL + "/api/v2"
 
 	return &BacklogNotifier{
@@ -77,16 +74,20 @@ func NewBacklogNotifier(client httpclient.HTTPClient, spaceURL string, apiKey st
 // --- Notifier インターフェース実装 ---
 
 // SendIssue は、Backlogに新しい課題を登録します。
-func (c *BacklogNotifier) SendIssue(ctx context.Context, summary, description string, projectID int) error {
+// 💡 修正: issueTypeID と priorityID を引数に追加
+func (c *BacklogNotifier) SendIssue(ctx context.Context, summary, description string, projectID, issueTypeID, priorityID int) error {
 	// 1. 絵文字のサニタイズ
 	sanitizedSummary := cleanStringFromEmojis(summary)
 	sanitizedDescription := cleanStringFromEmojis(description)
 
 	// 2. ペイロードの構築
+	// 💡 修正: IssueTypeID と PriorityID をペイロードに設定
 	issueData := BacklogIssuePayload{
 		ProjectID:   projectID,
 		Summary:     sanitizedSummary,
 		Description: sanitizedDescription,
+		IssueTypeID: issueTypeID,
+		PriorityID:  priorityID,
 	}
 
 	jsonBody, err := json.Marshal(issueData)
@@ -95,7 +96,6 @@ func (c *BacklogNotifier) SendIssue(ctx context.Context, summary, description st
 	}
 
 	// 3. APIリクエストの実行
-	// 💡 postCommentAttempt の代わりに汎用的な postRequest を利用
 	err = c.postRequest(ctx, "/issues", jsonBody)
 	if err != nil {
 		return fmt.Errorf("failed to create issue in Backlog: %w", err)
@@ -106,21 +106,15 @@ func (c *BacklogNotifier) SendIssue(ctx context.Context, summary, description st
 }
 
 // SendText は Backlog では課題登録を推奨するため、SendIssue にフォールバックさせます。
-// 課題IDが必須であるため、このメソッドはここでは実装しません。
-// CLIでテキスト投稿が必要な場合は、SendIssue を呼び出すようにします。
 func (c *BacklogNotifier) SendText(ctx context.Context, message string) error {
-	// Notifier インターフェースを満たすため、メッセージのみを渡された場合はエラーとする。
-	// Backlogの性質上、課題IDがないと投稿できないため。
-	return errors.New("BacklogNotifier cannot send plain text; use SendIssue with a project ID instead")
+	return errors.New("BacklogNotifier cannot send plain text; use SendIssue with a project ID and issue details instead")
 }
 
 // postRequest は、指定されたエンドポイントへリクエストを送信する内部ヘルパーメソッドです。
-// リトライは c.client (httpclient.Client) に委譲されます。
 func (c *BacklogNotifier) postRequest(ctx context.Context, endpoint string, jsonBody []byte) error {
 	// apiKey をクエリパラメータに追加
 	fullURL := fmt.Sprintf("%s%s?apiKey=%s", c.baseURL, endpoint, c.apiKey)
 
-	// 💡 context.Context を使用してリクエストを作成
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, fullURL, bytes.NewBuffer(jsonBody))
 	if err != nil {
 		return fmt.Errorf("failed to create POST request for Backlog: %w", err)
@@ -130,7 +124,6 @@ func (c *BacklogNotifier) postRequest(ctx context.Context, endpoint string, json
 	// 汎用クライアント c.client (リトライ機能込み) を使用して実行
 	resp, err := c.client.Do(req)
 	if err != nil {
-		// ネットワークエラーなどは c.client がリトライした後で返ってくる
 		return fmt.Errorf("failed to send POST request to Backlog (after retries): %w", err)
 	}
 	defer resp.Body.Close()
@@ -140,7 +133,6 @@ func (c *BacklogNotifier) postRequest(ctx context.Context, endpoint string, json
 	}
 
 	// エラーレスポンスの処理
-	// 💡 httpclient.HandleLimitedResponse を利用してボディを安全に読み込み
 	body, _ := httpclient.HandleLimitedResponse(resp, 4096) // 4KBまで読み込み
 
 	var errorResp BacklogErrorResponse

@@ -6,10 +6,8 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"time"
 
-	"github.com/shouni/go-web-exact/pkg/httpclient"
-	"go_notifier/pkg/notifier" // go_notifier のルートに合わせてインポートを調整
+	"go_notifier/pkg/notifier"
 
 	"github.com/spf13/cobra"
 )
@@ -19,6 +17,7 @@ var (
 	projectIDStr string
 	issueTypeID  int
 	priorityID   int
+	// 💡 修正: inputMessage と timeoutSec は cmd/root.go で定義されるため削除
 )
 
 // backlogCmd は Cobra の Backlog 課題登録用サブコマンドです
@@ -30,8 +29,6 @@ var backlogCmd = &cobra.Command{
 		if inputMessage == "" {
 			log.Fatal("🚨 致命的なエラー: 投稿メッセージがありません。-m フラグでメッセージを指定してください。")
 		}
-
-		// 💡 修正点 1: 必要な変数を Run 関数内で定義・取得
 
 		// 環境変数のチェックと定義
 		backlogSpaceURL := os.Getenv("BACKLOG_BASE_URL")
@@ -46,11 +43,7 @@ var backlogCmd = &cobra.Command{
 			log.Fatalf("🚨 致命的なエラー: --project-id の値が不正です: %v", err)
 		}
 
-		// HTTPクライアントの初期化
-		// 💡 修正点 2: httpClient を Run 関数内で初期化
-		httpClient := httpclient.New(time.Duration(timeoutSec) * time.Second)
-
-		// 1. サマリーと説明への分割（絵文字除去は Notifier 側に任せる）
+		// 1. サマリーと説明への分割
 		lines := strings.SplitN(inputMessage, "\n", 2)
 		summary := strings.TrimSpace(lines[0])
 		description := ""
@@ -63,17 +56,22 @@ var backlogCmd = &cobra.Command{
 		}
 
 		// Notifier の初期化
-		// 💡 修正点 3: NewBacklogNotifier の戻り値を正しく受け取り、引数をローカル変数に合わせる
-		backlogNotifier, err := notifier.NewBacklogNotifier(httpClient, backlogSpaceURL, backlogAPIKey)
+		// 💡 修正: sharedClient を使用
+		backlogNotifier, err := notifier.NewBacklogNotifier(sharedClient, backlogSpaceURL, backlogAPIKey)
 		if err != nil {
 			log.Fatalf("🚨 Backlog Notifierの初期化に失敗しました: %v", err)
 		}
 
 		// 2. 投稿実行（SendIssueを使用）
-		// Notifierが内部で絵文字除去を行う
-		// Note: issueTypeID, priorityID は現時点の notifier.SendIssue には渡せませんが、
-		// 投稿に必要な場合は BacklogNotifier の SendIssue メソッドのシグネチャとペイロードを変更する必要があります。
-		if err := backlogNotifier.SendIssue(context.Background(), summary, description, projectID); err != nil {
+		// 💡 修正: issueTypeID と priorityID を引数に追加
+		if err := backlogNotifier.SendIssue(
+			context.Background(),
+			summary,
+			description,
+			projectID,
+			issueTypeID, // CLIフラグから取得
+			priorityID,  // CLIフラグから取得
+		); err != nil {
 			log.Fatalf("🚨 Backlogへの投稿に失敗しました: %v", err)
 		}
 
@@ -88,9 +86,3 @@ func init() {
 	backlogCmd.Flags().IntVar(&issueTypeID, "issue-type-id", 101, "課題の種別ID（例: 101 for タスク）")
 	backlogCmd.Flags().IntVar(&priorityID, "priority-id", 3, "課題の優先度ID（例: 3 for 中）")
 }
-
-// ⚠️ 注意:
-// 以下の変数は、このスニペットの範囲外（例: cmd/root.go）で定義され、
-// Cobraのフラグとしてパースされていることを前提としています。
-// var inputMessage string
-// var timeoutSec int

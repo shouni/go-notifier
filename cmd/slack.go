@@ -4,14 +4,13 @@ import (
 	"context"
 	"log"
 	"os"
-	"time"
-
-	"github.com/shouni/go-web-exact/pkg/httpclient"
 
 	"go_notifier/pkg/notifier"
 
 	"github.com/spf13/cobra"
 )
+
+// 💡 修正: inputMessage と timeoutSec は cmd/root.go で定義されるため、パッケージレベルの変数は削除
 
 // slackCmd は Cobra の Slack 投稿用サブコマンドです
 var slackCmd = &cobra.Command{
@@ -23,18 +22,15 @@ var slackCmd = &cobra.Command{
 			log.Fatal("🚨 致命的なエラー: 投稿メッセージがありません。-m フラグでメッセージを指定してください。")
 		}
 
-		// 💡 修正点 1: slackWebhookURL を Run 関数内で定義・取得
+		// 環境変数から Webhook URL を取得し、定義
 		slackWebhookURL := os.Getenv("SLACK_WEBHOOK_URL")
 		if slackWebhookURL == "" {
 			log.Fatal("🚨 致命的なエラー: SLACK_WEBHOOK_URL 環境変数が設定されていません。")
 		}
 
-		// 💡 修正点 2: httpClient を Run 関数内で初期化
-		httpClient := httpclient.New(time.Duration(timeoutSec) * time.Second)
-
 		// Notifierの初期化
-		// (httpclient.HTTPClient, string) の新しいシグネチャに適合
-		slackNotifier := notifier.NewSlackNotifier(httpClient, slackWebhookURL)
+		// 💡 修正: sharedClient を使用 (ローカルの httpclient.New の呼び出しを削除)
+		slackNotifier := notifier.NewSlackNotifier(sharedClient, slackWebhookURL)
 
 		// 投稿実行
 		if err := slackNotifier.SendText(context.Background(), inputMessage); err != nil {
@@ -44,9 +40,3 @@ var slackCmd = &cobra.Command{
 		log.Println("✅ Slackへの投稿が完了しました。")
 	},
 }
-
-// ⚠️ 注意:
-// このコードは、他のファイル（例: cmd/root.go）で
-// `slackCmd` がルートコマンドに追加され、
-// `inputMessage` および `timeoutSec` がフラグとして
-// 定義・パースされていることを前提としています。

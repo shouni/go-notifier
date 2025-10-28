@@ -13,7 +13,7 @@ import (
 // 設定フラグのグローバル変数 (すべてのサブコマンドで参照可能)
 var (
 	inputMessage string // -m フラグで受け取る投稿メッセージ
-	timeoutSec   int    // 💡 修正点 1: タイムアウトをフラグ変数として定義
+	timeoutSec   int    // 💡 修正: タイムアウトをフラグ変数として定義
 )
 
 const (
@@ -28,7 +28,7 @@ var rootCmd = &cobra.Command{
 	Use:   "go_notifier",
 	Short: "SlackとBacklogへの通知を管理するCLIツール",
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
-		// 💡 修正点 3: フラグで受け取った値を使って共有クライアントを初期化
+		// 💡 修正: フラグで受け取った値を使って共有クライアントを初期化
 		timeout := time.Duration(timeoutSec) * time.Second
 		sharedClient = httpclient.New(timeout)
 		log.Printf("HTTPクライアントを初期化しました (Timeout: %s)。", timeout)
@@ -49,7 +49,7 @@ func Execute() {
 func init() {
 	// グローバルなフラグ（すべてのサブコマンドで利用可能）を定義
 	rootCmd.PersistentFlags().StringVarP(&inputMessage, "message", "m", "", "投稿するメッセージ（テキスト）")
-	// 💡 修正点 4: タイムアウトフラグを追加
+	// 💡 修正: タイムアウトフラグを追加
 	rootCmd.PersistentFlags().IntVar(&timeoutSec, "timeout", defaultTimeoutSec, "HTTPリクエストのタイムアウト時間（秒）")
 
 	// サブコマンドの追加 (slackCmd と backlogCmd はそれぞれ cmd/slack.go と cmd/backlog.go で定義されている)
