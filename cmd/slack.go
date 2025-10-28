@@ -10,27 +10,37 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// 💡 修正: inputMessage と timeoutSec は cmd/root.go で定義されるため、パッケージレベルの変数は削除
+// Slack 固有の設定フラグ変数
+var (
+	slackUsername  string
+	slackIconEmoji string
+	slackChannel   string
+)
 
-// slackCmd は Cobra の Slack 投稿用サブコマンドです
+// 💡 修正: Long の説明を復元
 var slackCmd = &cobra.Command{
 	Use:   "slack",
 	Short: "Slackにプレーンテキストを投稿します",
-	Long:  `環境変数 SLACK_WEBHOOK_URL が設定されている必要があります。`,
+	Long:  `環境変数 SLACK_WEBHOOK_URL が設定されている必要があります。投稿テキストは Block Kit 形式に変換され、文字数制限が適用されます。`,
 	Run: func(cmd *cobra.Command, args []string) {
 		if inputMessage == "" {
 			log.Fatal("🚨 致命的なエラー: 投稿メッセージがありません。-m フラグでメッセージを指定してください。")
 		}
 
-		// 環境変数から Webhook URL を取得し、定義
 		slackWebhookURL := os.Getenv("SLACK_WEBHOOK_URL")
 		if slackWebhookURL == "" {
 			log.Fatal("🚨 致命的なエラー: SLACK_WEBHOOK_URL 環境変数が設定されていません。")
 		}
 
 		// Notifierの初期化
-		// 💡 修正: sharedClient を使用 (ローカルの httpclient.New の呼び出しを削除)
-		slackNotifier := notifier.NewSlackNotifier(sharedClient, slackWebhookURL)
+		// 💡 修正: Slack固有のオプションを引数に追加
+		slackNotifier := notifier.NewSlackNotifier(
+			sharedClient,
+			slackWebhookURL,
+			slackUsername,
+			slackIconEmoji,
+			slackChannel,
+		)
 
 		// 投稿実行
 		if err := slackNotifier.SendText(context.Background(), inputMessage); err != nil {
@@ -39,4 +49,11 @@ var slackCmd = &cobra.Command{
 
 		log.Println("✅ Slackへの投稿が完了しました。")
 	},
+}
+
+func init() {
+	// Slack コマンド固有のフラグを定義
+	slackCmd.Flags().StringVar(&slackUsername, "username", os.Getenv("SLACK_USERNAME"), "Slack投稿時のユーザー名 (ENV: SLACK_USERNAME)")
+	slackCmd.Flags().StringVar(&slackIconEmoji, "icon-emoji", os.Getenv("SLACK_ICON_EMOJI"), "Slack投稿時の絵文字アイコン (ENV: SLACK_ICON_EMOJI)")
+	slackCmd.Flags().StringVar(&slackChannel, "channel", os.Getenv("SLACK_CHANNEL"), "Slack投稿先のチャンネル（例: #general）(ENV: SLACK_CHANNEL)")
 }

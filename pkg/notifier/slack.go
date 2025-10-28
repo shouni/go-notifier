@@ -22,14 +22,20 @@ type SlackNotifier struct {
 	// WebhookURL: 必須の通知先URL
 	WebhookURL string
 	// httpClient: 汎用クライアント (リトライロジックを含む)
-	client httpclient.HTTPClient
+	client    httpclient.HTTPClient
+	Username  string
+	IconEmoji string
+	Channel   string
 }
 
 // NewSlackNotifier は SlackNotifier の新しいインスタンスを作成します。
-func NewSlackNotifier(client httpclient.HTTPClient, webhookURL string) *SlackNotifier {
+func NewSlackNotifier(client httpclient.HTTPClient, webhookURL, username, iconEmoji, channel string) *SlackNotifier {
 	return &SlackNotifier{
 		WebhookURL: webhookURL,
 		client:     client,
+		Username:   username,
+		IconEmoji:  iconEmoji,
+		Channel:    channel,
 	}
 }
 
