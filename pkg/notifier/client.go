@@ -10,6 +10,7 @@ import (
 )
 
 // MultiError は複数のエラーを保持するためのカスタムエラー型です。
+// Notifierの処理を継続しつつ、最終的にすべてを報告するために使用されます。
 type MultiError []error
 
 func (m MultiError) Error() string {
@@ -30,6 +31,7 @@ type Notifier interface {
 	SendText(ctx context.Context, message string) error
 
 	// SendIssue は、特定の情報を構造化して課題として送信します（Backlogなどに利用）。
+	// SlackNotifierなどの課題機能がない実装は、この情報を使ってテキストを整形し、SendTextにフォールバックします。
 	SendIssue(ctx context.Context, summary, description string, projectID int) error
 }
 
@@ -40,6 +42,7 @@ type Notifier interface {
 // ContentNotifier は、Webコンテンツの抽出と、その結果を各Notifierに渡す役割を担います。
 type ContentNotifier struct {
 	Notifiers []Notifier
+	// 依存性注入の一貫性のために、web.Extractorではなく、その生成に必要なhttpclient.Clientを受け取る設計を維持
 	extractor *web.Extractor
 }
 
@@ -73,26 +76,24 @@ func (c *ContentNotifier) NotifyFromURL(ctx context.Context, url string, backlog
 		summary = extractedText
 	}
 
+	// Notifierに渡すための詳細な本文情報を作成
+	description := fmt.Sprintf("出典URL: %s\n\n%s", url, extractedText)
+
 	// 2. すべてのNotifierに対してループ処理で通知を送信
 	var allErrors MultiError // 複数のエラーを収集するためのスライス
 
 	for _, n := range c.Notifiers {
 		var notifyErr error
 
-		// Notifierの具体的な型に応じて、適切なメソッドを呼び出す
-		switch n.(type) {
-		case *SlackNotifier:
-			// Slackには整形済みテキスト全体を送信
-			notifyErr = n.SendText(ctx, fmt.Sprintf("【新着記事】 %s\n\n出典: %s\n\n%s", summary, url, extractedText))
-		case *BacklogNotifier:
-			// Backlogには課題として送信（抽出されたテキスト全体をDescriptionとする）
-			notifyErr = n.SendIssue(ctx, summary, fmt.Sprintf("出典URL: %s\n\n%s", url, extractedText), backlogProjectID)
-		default:
-			// 未知のNotifier型の場合はエラーとして記録
-			notifyErr = fmt.Errorf("unknown notifier type: %T", n)
-		}
+		// 💡 修正箇所: 具体的な型判定（switch n.(type)）を削除し、インターフェースメソッドを直接呼び出す
+		// Notifierの実装側が、渡されたprojectIDや自身の通知先に合わせた処理（課題作成 or テキスト整形）を実行する責任を負う。
+
+		// SlackNotifierはこのメソッド内でテキストを整形し、SendTextを呼び出す
+		// BacklogNotifierはこのメソッド内で課題作成APIを呼び出す
+		notifyErr = n.SendIssue(ctx, summary, description, backlogProjectID)
 
 		if notifyErr != nil {
+			// Notifierがエラーを返した場合、処理を中断せず、エラーを記録して次のNotifierへ進む
 			fmt.Printf("警告: Notifier (%T) への通知に失敗しました: %v\n", n, notifyErr)
 			allErrors = append(allErrors, fmt.Errorf("notifier %T failed: %w", n, notifyErr))
 		}
