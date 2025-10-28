@@ -1,108 +1,119 @@
 package notifier
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
-	"net/url"
+	"log"
+	"net/http"
 	"strings"
 
+	"github.com/forPelevin/gomoji"
 	"github.com/shouni/go-web-exact/pkg/httpclient"
 )
 
-// BacklogIssuePayload はBacklog APIに課題を登録するためのペイロード構造です。
-type BacklogIssuePayload struct {
-	ProjectId   int    `json:"projectId"`
-	Summary     string `json:"summary"`
-	IssueTypeId int    `json:"issueTypeId"`
-	PriorityId  int    `json:"priorityId"`
-	Description string `json:"description,omitempty"`
-}
-
-// BacklogNotifier はBacklogへの投稿を管理するためのクライアントです。
+// BacklogNotifier は Backlog API へ課題登録を行うクライアントです。
 type BacklogNotifier struct {
-	client  *httpclient.Client
-	baseURL string
-	apiKey  string
-
-	defaultIssueTypeID int
-	defaultPriorityID  int
-	targetProjectID    int // SendTextで利用するデフォルトのプロジェクトIDを保持
+	client           *httpclient.Client
+	baseURL          string
+	apiKey           string
+	issueTypeID      int
+	priorityID       int
+	defaultProjectID int
 }
 
-// NewBacklogNotifier は新しい BacklogNotifier のインスタンスを初期化します。
-// targetProjectID は SendText の実装を可能にするために必要です。
-func NewBacklogNotifier(
-	httpClient *httpclient.Client,
-	baseURL string,
-	apiKey string,
-	issueTypeID int,
-	priorityID int,
-	targetProjectID int, // 新規追加
-) *BacklogNotifier {
+// NewBacklogNotifier は BacklogNotifier のインスタンスを作成します。
+func NewBacklogNotifier(client *httpclient.Client, baseURL, apiKey string, issueTypeID, priorityID, defaultProjectID int) *BacklogNotifier {
 	return &BacklogNotifier{
-		client:             httpClient,
-		baseURL:            baseURL,
-		apiKey:             apiKey,
-		defaultIssueTypeID: issueTypeID,
-		defaultPriorityID:  priorityID,
-		targetProjectID:    targetProjectID,
+		client:           client,
+		baseURL:          baseURL,
+		apiKey:           apiKey,
+		issueTypeID:      issueTypeID,
+		priorityID:       priorityID,
+		defaultProjectID: defaultProjectID,
 	}
 }
 
-// postInternal は、httpclientを使ってBacklog APIにPOSTリクエストを送る内部ヘルパー関数です。
-func (b *BacklogNotifier) postInternal(ctx context.Context, payload BacklogIssuePayload) error {
-	if b.baseURL == "" || b.apiKey == "" {
-		return nil // API設定がない場合、エラーではなくスキップとして扱う
-	}
-
-	apiURL := fmt.Sprintf("%s/issues?apiKey=%s", b.baseURL, url.QueryEscape(b.apiKey))
-
-	_, err := b.client.PostJSONAndFetchBytes(apiURL, payload, ctx)
-
-	if err != nil {
-		if httpclient.IsNonRetryableError(err) {
-			return fmt.Errorf("Backlogへの課題登録に失敗しました (APIエラー): %w", err)
-		}
-		return fmt.Errorf("Backlogへの課題登録に失敗しました: %w", err)
-	}
-
-	return nil
-}
-
-// SendText は Notifier インターフェースを実装し、簡易的な課題として登録します。
+// SendText は Backlog にテキストを投稿します (SendIssue に委譲)。
 func (b *BacklogNotifier) SendText(ctx context.Context, message string) error {
-	if b.targetProjectID <= 0 {
-		return fmt.Errorf("BacklogNotifier.SendText は、有効なデフォルトプロジェクトIDが設定されていないため実行できません。")
-	}
+	log.Printf("⚠️ 警告: BacklogNotifier.SendText は BacklogNotifier.SendIssue に委譲されます。")
 
-	// メッセージをサマリーと説明に分割して課題として登録
-	summary := message
-	description := ""
-
-	// 最初の1行をサマリー、残りを説明とする
 	lines := strings.SplitN(message, "\n", 2)
-	if len(lines) == 2 {
-		summary = strings.TrimSpace(lines[0])
+	summary := strings.TrimSpace(lines[0])
+	description := ""
+	if len(lines) > 1 {
 		description = strings.TrimSpace(lines[1])
 	}
 
-	// SendIssueに委譲し、初期化時に設定されたデフォルトのプロジェクトIDを使用する
-	return b.SendIssue(ctx, summary, description, b.targetProjectID)
+	if summary == "" {
+		return fmt.Errorf("投稿メッセージが空です")
+	}
+
+	return b.SendIssue(ctx, summary, description, b.defaultProjectID)
 }
 
-// SendIssue は Notifier インターフェースを実装し、課題情報を受け取ってBacklogに課題として投稿します。
+// SendIssue は Backlog に課題を登録します。
 func (b *BacklogNotifier) SendIssue(ctx context.Context, summary, description string, projectID int) error {
-	if projectID <= 0 {
-		return fmt.Errorf("Backlogへの課題登録には有効なプロジェクトIDが必要です")
+	if b.baseURL == "" || b.apiKey == "" {
+		log.Println("⚠️ 警告: Backlog設定が不足しているため、投稿処理をスキップします。")
+		return nil
 	}
 
-	payload := BacklogIssuePayload{
-		ProjectId:   projectID,
-		Summary:     summary,
-		IssueTypeId: b.defaultIssueTypeID,
-		PriorityId:  b.defaultPriorityID,
-		Description: description,
+	// 1. gomoji を使用した絵文字の除去処理
+	cleanedSummary := gomoji.RemoveEmojis(summary)         // 💡 修正
+	cleanedDescription := gomoji.RemoveEmojis(description) // 💡 修正
+
+	if strings.TrimSpace(cleanedSummary) == "" {
+		return fmt.Errorf("絵文字除去後、課題のサマリーが空になりました")
 	}
 
-	return b.postInternal(ctx, payload)
+	// 2. Backlog API へのリクエストペイロード作成
+	issueData := map[string]interface{}{
+		"projectId":   projectID,
+		"summary":     cleanedSummary,
+		"description": cleanedDescription,
+		"issueTypeId": b.issueTypeID,
+		"priorityId":  b.priorityID,
+	}
+
+	return b.postInternal(ctx, issueData)
+}
+
+func (b *BacklogNotifier) postInternal(ctx context.Context, data map[string]interface{}) error {
+	// Backlog API のエンドポイント
+	url := fmt.Sprintf("%s/api/v2/issues?apiKey=%s", b.baseURL, b.apiKey)
+
+	jsonBody, err := json.Marshal(data)
+	if err != nil {
+		return fmt.Errorf("JSONのマーシャリングに失敗しました: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewBuffer(jsonBody))
+	if err != nil {
+		return fmt.Errorf("リクエストの作成に失敗しました: %w", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := b.client.Do(req)
+	if err != nil {
+		return fmt.Errorf("APIコールの実行に失敗しました: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusCreated {
+		var errorResponse struct {
+			Errors []struct {
+				Message string `json:"message"`
+			} `json:"errors"`
+		}
+		// エラーレスポンスのデコードを試みる
+		if err := json.NewDecoder(resp.Body).Decode(&errorResponse); err == nil && len(errorResponse.Errors) > 0 {
+			return fmt.Errorf("Backlog APIエラー (%d): %s", resp.StatusCode, errorResponse.Errors[0].Message)
+		}
+		return fmt.Errorf("Backlog APIが予期せぬステータスを返しました: %d", resp.StatusCode)
+	}
+
+	return nil
 }
