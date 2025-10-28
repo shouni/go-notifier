@@ -14,11 +14,10 @@ import (
 var (
 	inputMessage string // -m フラグで受け取る投稿メッセージ
 	timeoutSec   int    // HTTPリクエストのタイムアウト時間（秒）
-	// 💡 Backlog固有の変数 (projectIDStr, issueTypeID, priorityID) は cmd/backlog.go で定義されるため、ここでは削除
 )
 
 const (
-	defaultTimeout = 60 // 秒
+	defaultTimeoutSec = 60 // 秒
 )
 
 // sharedClient はすべてのサブコマンドで共有される HTTP クライアント
@@ -48,9 +47,8 @@ func Execute() {
 }
 
 func init() {
-	// グローバルなフラグ（すべてのサブコマンドで利用可能）を定義
 	rootCmd.PersistentFlags().StringVarP(&inputMessage, "message", "m", "", "投稿するメッセージ（テキスト）")
-	rootCmd.PersistentFlags().IntVar(&timeoutSec, "timeout", defaultTimeout, "HTTPリクエストのタイムアウト時間（秒）")
+	rootCmd.PersistentFlags().IntVar(&timeoutSec, "timeout", defaultTimeoutSec, "HTTPリクエストのタイムアウト時間（秒）")
 
 	// サブコマンドの追加 (slackCmd と backlogCmd はそれぞれ cmd/slack.go と cmd/backlog.go で定義されている)
 	rootCmd.AddCommand(slackCmd)
