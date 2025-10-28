@@ -61,8 +61,8 @@ func (b *BacklogNotifier) SendIssue(ctx context.Context, summary, description st
 	}
 
 	// 1. gomoji を使用した絵文字の除去処理
-	cleanedSummary := gomoji.RemoveEmojis(summary)         // 💡 修正
-	cleanedDescription := gomoji.RemoveEmojis(description) // 💡 修正
+	cleanedSummary := gomoji.RemoveEmojis(summary)
+	cleanedDescription := gomoji.RemoveEmojis(description)
 
 	if strings.TrimSpace(cleanedSummary) == "" {
 		return fmt.Errorf("絵文字除去後、課題のサマリーが空になりました")
