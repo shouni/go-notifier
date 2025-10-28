@@ -17,45 +17,33 @@ var (
 	slackChannel   string
 )
 
-// Slack Block Kit に合わせた投稿メッセージの制限
-const slackTextLimit = 3000
-
-// slackCmd は Cobra の Slack 投稿用サブコマンドです
-// 注: inputMessage, sharedClient は同じ cmd パッケージ内の root.go (または共有ファイル) で定義されている前提です
+// 💡 修正: Long の説明を復元
 var slackCmd = &cobra.Command{
 	Use:   "slack",
-	Short: "Slackにメッセージを投稿します（Block Kit形式、文字数制限あり）",
+	Short: "Slackにプレーンテキストを投稿します",
 	Long:  `環境変数 SLACK_WEBHOOK_URL が設定されている必要があります。投稿テキストは Block Kit 形式に変換され、文字数制限が適用されます。`,
 	Run: func(cmd *cobra.Command, args []string) {
 		if inputMessage == "" {
 			log.Fatal("🚨 致命的なエラー: 投稿メッセージがありません。-m フラグでメッセージを指定してください。")
 		}
 
-		slackWebhook := os.Getenv("SLACK_WEBHOOK_URL")
-		if slackWebhook == "" {
+		slackWebhookURL := os.Getenv("SLACK_WEBHOOK_URL")
+		if slackWebhookURL == "" {
 			log.Fatal("🚨 致命的なエラー: SLACK_WEBHOOK_URL 環境変数が設定されていません。")
 		}
 
-		// Notifier の初期化
+		// Notifierの初期化
+		// 💡 修正: Slack固有のオプションを引数に追加
 		slackNotifier := notifier.NewSlackNotifier(
 			sharedClient,
-			slackWebhook,
+			slackWebhookURL,
 			slackUsername,
 			slackIconEmoji,
 			slackChannel,
 		)
 
-		// 投稿メッセージの整形と制限
-		messageToSend := inputMessage
-		runes := []rune(messageToSend)
-		if len(runes) > slackTextLimit {
-			// 文字数（rune）で切り詰め
-			messageToSend = string(runes[:slackTextLimit]) + "..."
-			log.Printf("⚠️ 警告: メッセージが %d 文字を超えたため、%d 文字に切り詰められました。", len(runes), slackTextLimit)
-		}
-
 		// 投稿実行
-		if err := slackNotifier.SendText(context.Background(), messageToSend); err != nil {
+		if err := slackNotifier.SendText(context.Background(), inputMessage); err != nil {
 			log.Fatalf("🚨 Slackへの投稿に失敗しました: %v", err)
 		}
 
