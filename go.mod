@@ -4,7 +4,7 @@ go 1.25
 
 require (
 	github.com/forPelevin/gomoji v1.4.1
-	github.com/shouni/go-web-exact v1.0.7
+	github.com/shouni/go-web-exact v1.0.8
 	github.com/slack-go/slack v0.17.3
 	github.com/spf13/cobra v1.10.1
 )
