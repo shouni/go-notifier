@@ -92,7 +92,7 @@ SlackNotifierは、内部でMarkdownをBlock Kitに変換します。
 Cobra CLI と DI の原則に基づき、責務が明確に分離されています。
 
 ```
-go_notifier/
+go-notifier/
 ├── cmd/
 │   ├── root.go       # グローバルなフラグ定義とエントリーポイント (Cobra)
 │   ├── slack.go      # Slack サブコマンドのロジック
