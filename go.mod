@@ -1,4 +1,4 @@
-module go_notifier
+module go-notifier
 
 go 1.25
 

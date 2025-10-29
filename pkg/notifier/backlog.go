@@ -9,8 +9,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/forPelevin/gomoji"
 	"github.com/shouni/go-web-exact/pkg/httpclient"
+	"go-notifier/pkg/util"
 )
 
 // BacklogNotifier は Backlog 課題登録用の API クライアントです。
@@ -49,13 +49,6 @@ func (e *BacklogError) Error() string {
 	return fmt.Sprintf("Backlog API error (status %d, code %d): %s", e.StatusCode, e.Code, e.Message)
 }
 
-// cleanStringFromEmojis は、文字列から絵文字を削除します。
-// NOTE: 現状はBacklogNotifier専用としてこのファイルに配置していますが、
-// 他のNotifierでも同様の処理が必要になった場合は、共通のユーティリティパッケージへの移動を検討してください。
-func cleanStringFromEmojis(s string) string {
-	return gomoji.RemoveEmojis(s)
-}
-
 // NewBacklogNotifier はBacklogNotifierを初期化します。
 func NewBacklogNotifier(client httpclient.HTTPClient, spaceURL string, apiKey string) (*BacklogNotifier, error) {
 	if spaceURL == "" || apiKey == "" {
@@ -79,8 +72,8 @@ func NewBacklogNotifier(client httpclient.HTTPClient, spaceURL string, apiKey st
 // SendIssue は、Backlogに新しい課題を登録します。
 func (c *BacklogNotifier) SendIssue(ctx context.Context, summary, description string, projectID, issueTypeID, priorityID int) error {
 	// 1. 絵文字のサニタイズ
-	sanitizedSummary := cleanStringFromEmojis(summary)
-	sanitizedDescription := cleanStringFromEmojis(description)
+	sanitizedSummary := util.CleanStringFromEmojis(summary)         // 修正: 大文字始まりの関数を呼び出し
+	sanitizedDescription := util.CleanStringFromEmojis(description) // 修正: 大文字始まりの関数を呼び出し
 
 	// 2. ペイロードの構築
 	issueData := BacklogIssuePayload{
@@ -123,7 +116,7 @@ func (c *BacklogNotifier) SendTextWithHeader(ctx context.Context, headerText str
 // PostComment は指定された課題IDにコメントを投稿します。
 func (c *BacklogNotifier) PostComment(ctx context.Context, issueID string, content string) error {
 	// 1. 絵文字のサニタイズ (Backlogの制限対策)
-	sanitizedContent := cleanStringFromEmojis(content)
+	sanitizedContent := util.CleanStringFromEmojis(content) // 修正: 大文字始まりの関数を呼び出し
 
 	// 2. ペイロードの構築
 	commentData := map[string]string{
