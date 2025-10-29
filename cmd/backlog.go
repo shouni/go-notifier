@@ -17,24 +17,23 @@ var (
 	projectIDStr string
 	issueTypeID  int
 	priorityID   int
-	// 💡 修正: inputMessage と timeoutSec は cmd/root.go で定義されるため削除
 )
 
 // backlogCmd は Cobra の Backlog 課題登録用サブコマンドです
 var backlogCmd = &cobra.Command{
 	Use:   "backlog",
 	Short: "Backlogに課題として投稿します（Notifier側で絵文字除去）",
-	Long:  `環境変数 BACKLOG_BASE_URL と BACKLOG_API_KEY が設定されている必要があります。`,
+	Long:  `環境変数 BACKLOG_SPACE_URL と BACKLOG_API_KEY が設定されている必要があります。`,
 	Run: func(cmd *cobra.Command, args []string) {
 		if inputMessage == "" {
 			log.Fatal("🚨 致命的なエラー: 投稿メッセージがありません。-m フラグでメッセージを指定してください。")
 		}
 
 		// 環境変数のチェックと定義
-		backlogSpaceURL := os.Getenv("BACKLOG_BASE_URL")
+		backlogSpaceURL := os.Getenv("BACKLOG_SPACE_URL")
 		backlogAPIKey := os.Getenv("BACKLOG_API_KEY")
 		if backlogSpaceURL == "" || backlogAPIKey == "" {
-			log.Fatal("🚨 致命的なエラー: BACKLOG_BASE_URL または BACKLOG_API_KEY 環境変数が設定されていません。")
+			log.Fatal("🚨 致命的なエラー: BACKLOG_SPACE_URL または BACKLOG_API_KEY 環境変数が設定されていません。")
 		}
 
 		// プロジェクトIDの取得とチェック
@@ -56,21 +55,19 @@ var backlogCmd = &cobra.Command{
 		}
 
 		// Notifier の初期化
-		// 💡 修正: sharedClient を使用
 		backlogNotifier, err := notifier.NewBacklogNotifier(sharedClient, backlogSpaceURL, backlogAPIKey)
 		if err != nil {
 			log.Fatalf("🚨 Backlog Notifierの初期化に失敗しました: %v", err)
 		}
 
 		// 2. 投稿実行（SendIssueを使用）
-		// 💡 修正: issueTypeID と priorityID を引数に追加
 		if err := backlogNotifier.SendIssue(
 			context.Background(),
 			summary,
 			description,
 			projectID,
-			issueTypeID, // CLIフラグから取得
-			priorityID,  // CLIフラグから取得
+			issueTypeID,
+			priorityID,
 		); err != nil {
 			log.Fatalf("🚨 Backlogへの投稿に失敗しました: %v", err)
 		}

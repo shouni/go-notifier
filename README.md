@@ -32,11 +32,11 @@ go build -o bin/go_notifier ./cmd
 
 本アプリケーションは、Notifier ごとに以下の環境変数に依存します。
 
-| 環境変数名 | 役割 | 必須/任意 | 例 |
-| :--- | :--- | :--- | :--- |
+| 環境変数名                   | 役割 | 必須/任意 | 例 |
+|:------------------------| :--- | :--- | :--- |
 | **SLACK\_WEBHOOK\_URL** | Slack への通知用 Webhook URL | `slack` コマンドで必須 | `https://hooks.slack.com/services/TXXXX/...` |
-| **BACKLOG\_BASE\_URL** | Backlog スペースのベース URL (APIパスは内部で付与) | `backlog` コマンドで必須 | `https://[space_id].backlog.jp` |
-| **BACKLOG\_API\_KEY** | Backlog への投稿に使用する API キー | `backlog` コマンドで必須 | `xxxxxxxxxxxxxxxxxxxxxxxx` |
+| **BACKLOG\_SPACE\_URL** | Backlog スペースのベース URL (APIパスは内部で付与) | `backlog` コマンドで必須 | `https://[space_id].backlog.jp` |
+| **BACKLOG\_API\_KEY**   | Backlog への投稿に使用する API キー | `backlog` コマンドで必須 | `xxxxxxxxxxxxxxxxxxxxxxxx` |
 
 ### 3\. 実行（CLIコマンド）
 
@@ -58,7 +58,7 @@ SlackNotifierは、内部でMarkdownをBlock Kitに変換します。
 課題登録に必要な ID は CLI フラグで指定します。
 
 ```bash
-# 環境変数 BACKLOG_BASE_URL と BACKLOG_API_KEY が必要
+# 環境変数 BACKLOG_SPACE_URL と BACKLOG_API_KEY が必要
 # 複数行メッセージの場合、最初の行がサマリーになります。
 ./bin/go_notifier backlog \
   --message "新規課題のサマリー\nこれは課題の説明文です。" \
