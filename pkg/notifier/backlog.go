@@ -9,11 +9,12 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/forPelevin/gomoji"
+	"github.com/shouni/go-notifier/pkg/util"
 	"github.com/shouni/go-web-exact/pkg/httpclient"
 )
 
 // BacklogNotifier は Backlog 課題登録用の API クライアントです。
+// Notifier インターフェースを満たしますが、SendText および SendTextWithHeader は Backlog の利用方針（課題登録推奨）に基づきエラーを返します。
 type BacklogNotifier struct {
 	client  httpclient.HTTPClient // 汎用クライアント (リトライ機能込み)
 	baseURL string
@@ -48,11 +49,6 @@ func (e *BacklogError) Error() string {
 	return fmt.Sprintf("Backlog API error (status %d, code %d): %s", e.StatusCode, e.Code, e.Message)
 }
 
-// cleanStringFromEmojis は、文字列から絵文字を削除します。
-func cleanStringFromEmojis(s string) string {
-	return gomoji.RemoveEmojis(s)
-}
-
 // NewBacklogNotifier はBacklogNotifierを初期化します。
 func NewBacklogNotifier(client httpclient.HTTPClient, spaceURL string, apiKey string) (*BacklogNotifier, error) {
 	if spaceURL == "" || apiKey == "" {
@@ -76,8 +72,8 @@ func NewBacklogNotifier(client httpclient.HTTPClient, spaceURL string, apiKey st
 // SendIssue は、Backlogに新しい課題を登録します。
 func (c *BacklogNotifier) SendIssue(ctx context.Context, summary, description string, projectID, issueTypeID, priorityID int) error {
 	// 1. 絵文字のサニタイズ
-	sanitizedSummary := cleanStringFromEmojis(summary)
-	sanitizedDescription := cleanStringFromEmojis(description)
+	sanitizedSummary := util.CleanStringFromEmojis(summary)         // 修正: 大文字始まりの関数を呼び出し
+	sanitizedDescription := util.CleanStringFromEmojis(description) // 修正: 大文字始まりの関数を呼び出し
 
 	// 2. ペイロードの構築
 	issueData := BacklogIssuePayload{
@@ -103,14 +99,54 @@ func (c *BacklogNotifier) SendIssue(ctx context.Context, summary, description st
 	return nil
 }
 
-// SendText は Backlog では課題登録を推奨するため、SendIssue にフォールバックさせます。
+// SendText は Backlog では課題登録を推奨するため、エラーを返します。
+// Notifier インターフェース (ヘッダーなし) を満たすための実装です。
 func (c *BacklogNotifier) SendText(ctx context.Context, message string) error {
-	return errors.New("BacklogNotifier cannot send plain text; use SendIssue with a project ID and issue details instead")
+	return errors.New("BacklogNotifier: Plain text notification is not supported; use SendIssue or PostComment")
+}
+
+// SendTextWithHeader は Backlog では課題登録を推奨するため、エラーを返します。
+// Notifier インターフェース (ヘッダーあり) を満たすための実装です。
+func (c *BacklogNotifier) SendTextWithHeader(ctx context.Context, headerText string, message string) error {
+	return errors.New("BacklogNotifier: Plain text notification is not supported; use SendIssue or PostComment")
+}
+
+// --- コメント投稿機能の追加 ---
+
+// PostComment は指定された課題IDにコメントを投稿します。
+func (c *BacklogNotifier) PostComment(ctx context.Context, issueID string, content string) error {
+	if issueID == "" {
+		return errors.New("issueID cannot be empty for posting a comment")
+	}
+
+	// 1. 絵文字のサニタイズ (Backlogの制限対策)
+	sanitizedContent := util.CleanStringFromEmojis(content) // 修正: 大文字始まりの関数を呼び出し
+
+	// 2. ペイロードの構築
+	commentData := map[string]string{
+		"content": sanitizedContent,
+	}
+	jsonBody, err := json.Marshal(commentData)
+	if err != nil {
+		return fmt.Errorf("failed to marshal comment data: %w", err)
+	}
+
+	// 3. APIリクエストの実行
+	// エンドポイント: /issues/{issueIdOrKey}/comments
+	endpoint := fmt.Sprintf("/issues/%s/comments", issueID)
+
+	// c.postRequest を使用してコメントを投稿
+	err = c.postRequest(ctx, endpoint, jsonBody)
+	if err != nil {
+		return fmt.Errorf("failed to post comment to Backlog issue %s: %w", issueID, err)
+	}
+
+	fmt.Printf("✅ Backlog issue %s successfully commented.\n", issueID)
+	return nil
 }
 
 // postRequest は、指定されたエンドポイントへリクエストを送信する内部ヘルパーメソッドです。
 func (c *BacklogNotifier) postRequest(ctx context.Context, endpoint string, jsonBody []byte) error {
-	// 💡 修正: apiKey をURLから削除し、ヘッダーに設定 (セキュリティ向上)
 	fullURL := fmt.Sprintf("%s%s", c.baseURL, endpoint)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, fullURL, bytes.NewBuffer(jsonBody))
