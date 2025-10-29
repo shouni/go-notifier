@@ -14,6 +14,7 @@ import (
 )
 
 // BacklogNotifier は Backlog 課題登録用の API クライアントです。
+// Notifier インターフェースを満たします。
 type BacklogNotifier struct {
 	client  httpclient.HTTPClient // 汎用クライアント (リトライ機能込み)
 	baseURL string
@@ -103,14 +104,21 @@ func (c *BacklogNotifier) SendIssue(ctx context.Context, summary, description st
 	return nil
 }
 
-// SendText は Backlog では課題登録を推奨するため、SendIssue にフォールバックさせます。
+// SendText は Backlog では課題登録を推奨するため、エラーを返します。
+// Notifier インターフェース (ヘッダーなし) を満たすための実装です。
 func (c *BacklogNotifier) SendText(ctx context.Context, message string) error {
 	return errors.New("BacklogNotifier cannot send plain text; use SendIssue with a project ID and issue details instead")
 }
 
+// SendTextWithHeader は Backlog では課題登録を推奨するため、エラーを返します。
+// Notifier インターフェース (ヘッダーあり) を満たすための実装です。
+func (c *BacklogNotifier) SendTextWithHeader(ctx context.Context, headerText string, message string) error {
+	// headerText は summary として使用可能だが、ここではシンプルに SendIssue の利用を促す
+	return errors.New("BacklogNotifier cannot send plain text with header; use SendIssue with a project ID and issue details instead")
+}
+
 // postRequest は、指定されたエンドポイントへリクエストを送信する内部ヘルパーメソッドです。
 func (c *BacklogNotifier) postRequest(ctx context.Context, endpoint string, jsonBody []byte) error {
-	// 💡 修正: apiKey をURLから削除し、ヘッダーに設定 (セキュリティ向上)
 	fullURL := fmt.Sprintf("%s%s", c.baseURL, endpoint)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, fullURL, bytes.NewBuffer(jsonBody))

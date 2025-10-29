@@ -41,15 +41,16 @@ func NewSlackNotifier(client httpclient.HTTPClient, webhookURL, username, iconEm
 
 // --- Notifier インターフェース実装 ---
 
-// SendText は、プレーンなMarkdownテキストを解析し、SlackのBlock Kit形式で投稿します。
+// SendTextWithHeader は、ヘッダー付きのテキストメッセージを解析し、SlackのBlock Kit形式で投稿します。
+// headerText は、Slackメッセージのヘッダーとして表示されるテキストです。
 // message は、抽出された本文全体（Markdownとして解釈可能）を想定します。
-func (s *SlackNotifier) SendText(ctx context.Context, message string) error {
+func (s *SlackNotifier) SendTextWithHeader(ctx context.Context, headerText string, message string) error {
 	// --- 1. Block Kitの構築ロジック（流用元のロジックを汎用化） ---
 
-	// ヘッダーブロックは汎用的なものに変更
+	// 外部から指定されたheaderTextを使用してヘッダーブロックを作成
 	blocks := []slack.Block{
 		slack.NewHeaderBlock(
-			slack.NewTextBlockObject("plain_text", "📢 Web Content Notification", true, false),
+			slack.NewTextBlockObject("plain_text", headerText, true, false),
 		),
 		slack.NewDividerBlock(),
 	}
@@ -64,8 +65,7 @@ func (s *SlackNotifier) SendText(ctx context.Context, message string) error {
 	headerRegex := regexp.MustCompile(`(?m)^##\s*(.*)$`) // ## Title -> *Title*
 	listItemRegex := regexp.MustCompile(`(?m)^\s*-\s+`)  // - item -> • item
 
-	// 抽出テキストをセクション（ここでは行）で分割
-	// Web抽出後のテキストは通常、セクション区切り（\n---\n）がないため、全体を一つのセクションとして扱います
+	// 抽出テキストをセクションで分割 (Web抽出後のテキストは通常、全体を一つのセクションとして扱います)
 	reviewSections := []string{message}
 
 	for _, sectionText := range reviewSections {
@@ -101,6 +101,7 @@ func (s *SlackNotifier) SendText(ctx context.Context, message string) error {
 		blocks = blocks[:len(blocks)-1] // 最後の余分なDividerを削除
 	}
 
+	// フッターには送信時刻を含める
 	footerBlock := slack.NewContextBlock(
 		"notification-context",
 		slack.NewTextBlockObject("mrkdwn", fmt.Sprintf("送信時刻: %s",
@@ -110,7 +111,11 @@ func (s *SlackNotifier) SendText(ctx context.Context, message string) error {
 
 	// --- 2. Webhookメッセージの作成とペイロード準備 ---
 	msg := slack.WebhookMessage{
-		Text: fmt.Sprintf("Webコンテンツ通知: %s...", strings.Split(message, "\n")[0]), // 最初の行をプレーンテキストの代替として使用
+		// プレーンテキストの代替としてヘッダーを使用し、必要に応じてユーザー名とアイコンを上書き
+		Text:      headerText,
+		Username:  s.Username,
+		IconEmoji: s.IconEmoji,
+		Channel:   s.Channel,
 		Blocks: &slack.Blocks{
 			BlockSet: blocks,
 		},
@@ -132,17 +137,15 @@ func (s *SlackNotifier) SendText(ctx context.Context, message string) error {
 	// 汎用クライアント (リトライロジックを持つ) を利用してリクエスト実行
 	resp, err := s.client.Do(req)
 	if err != nil {
-		return fmt.Errorf("Slack WebhookへのHTTPリクエストに失敗しました (ネットワーク/接続エラー): %w", err)
+		return fmt.Errorf("Slack WebhookへのHTTPリクエストに失敗しました (リトライ後): %w", err)
 	}
 	defer resp.Body.Close()
 
-	// レスポンスステータスのチェック（httpclientのhandleResponseは利用できないため、ここで手動チェック）
+	// レスポンスステータスのチェック
 	if resp.StatusCode != http.StatusOK {
 		// ボディを読み込み、エラーメッセージとして含める（最大1024バイトまで）
 		body, _ := httpclient.HandleLimitedResponse(resp, 1024)
 
-		// 5xx やその他のエラーは httpclient.Client のリトライ層で処理されているはずだが、
-		// ここでは最終的なエラーとして報告
 		return fmt.Errorf("Slack API returned non-OK status code: %d %s, Body: %s",
 			resp.StatusCode, resp.Status, strings.TrimSpace(string(body)))
 	}
@@ -150,8 +153,18 @@ func (s *SlackNotifier) SendText(ctx context.Context, message string) error {
 	return nil
 }
 
-// SendIssue は Slack では課題登録機能が標準ではないため、SendTextにフォールバックします。
-func (s *SlackNotifier) SendIssue(ctx context.Context, summary, description string, projectID int) error {
-	fullMessage := fmt.Sprintf("*【課題】%s*\n\n%s", summary, description)
-	return s.SendText(ctx, fullMessage)
+// SendText は、プレーンテキストメッセージを通知します。（ヘッダーなし）
+// Notifier インターフェースを満たすため、SendTextWithHeader にデフォルトヘッダーを付けてフォールバックします。
+func (s *SlackNotifier) SendText(ctx context.Context, message string) error {
+	const defaultHeader = "📢 通知メッセージ"
+	// ヘッダーなしのインターフェースだが、内部ではヘッダー付きとして処理する
+	return s.SendTextWithHeader(ctx, defaultHeader, message)
+}
+
+// SendIssue は Slack では課題登録機能が標準ではないため、SendTextWithHeaderにフォールバックします。
+// 課題の概要をヘッダーとして使用し、課題の詳細をメッセージ本文として送信します。
+func (s *SlackNotifier) SendIssue(ctx context.Context, summary, description string, projectID, issueTypeID, priorityID int) error {
+	// summary をヘッダーとして使用し、description を本文として渡す
+	header := fmt.Sprintf("【課題】%s", summary)
+	return s.SendTextWithHeader(ctx, header, description)
 }
