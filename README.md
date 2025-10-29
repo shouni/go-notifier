@@ -128,6 +128,6 @@ go-notifier/
 6.  APIリクエストは、**指数バックオフ** リトライロジックを持つ共有 **`httpclient`** を通じて実行される。
 7.  Backlog の場合、APIキーはセキュリティのために HTTP **ヘッダー** で送信される。
 
-### 📜 ライセンス (License)
+## 📜 ライセンス (License)
 
 このプロジェクトは [MIT License](https://opensource.org/licenses/MIT) の下で公開されています。
