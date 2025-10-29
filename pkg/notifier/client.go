@@ -57,8 +57,8 @@ func (c *ContentNotifier) Notify(ctx context.Context, url string, backlogProject
 	var summary string
 	var description string
 
-	// 最初の行をサマリーとして使用
-	lines := strings.SplitN(text, "\n\n", 2)
+	// 最初の改行で分割 (修正: "\n\n" ではなく "\n" で分割し、より柔軟に対応)
+	lines := strings.SplitN(text, "\n", 2)
 	summary = lines[0]
 	if len(lines) > 1 {
 		description = lines[1]
@@ -74,11 +74,12 @@ func (c *ContentNotifier) Notify(ctx context.Context, url string, backlogProject
 
 		// Backlogなどの課題登録が可能なNotifierに対しては SendIssue を優先
 		if backlogProjectID != 0 {
-			// Backlogへの課題登録を試みる
-			// issueTypeID と priorityID が0の場合、APIエラーを回避するためバリデーションを行う
-			if issueTypeID == 0 || priorityID == 0 { // Backlog APIの仕様上、これらのIDは必須
-				allErrors = append(allErrors, fmt.Errorf("Notifier (%T): Backlogへの課題登録には issueTypeID (%d) と priorityID (%d) が非ゼロである必要があります", n, issueTypeID, priorityID))
-				continue // このNotifierへの通知をスキップ
+			// BacklogNotifierの場合のみ、issueTypeIDとpriorityIDのバリデーションを行う
+			if _, ok := n.(*BacklogNotifier); ok {
+				if issueTypeID == 0 || priorityID == 0 { // Backlog APIの仕様上、これらのIDは必須
+					allErrors = append(allErrors, fmt.Errorf("Notifier (%T): Backlogへの課題登録には issueTypeID (%d) と priorityID (%d) が非ゼロである必要があります", n, issueTypeID, priorityID))
+					continue // このNotifierへの通知をスキップ
+				}
 			}
 
 			notifyErr = n.SendIssue(ctx, summary, description, backlogProjectID, issueTypeID, priorityID)
