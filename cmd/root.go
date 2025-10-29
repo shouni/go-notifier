@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"fmt"
 	"log"
 	"os"
 	"time"
@@ -38,10 +37,10 @@ var rootCmd = &cobra.Command{
 	},
 }
 
-// Execute はルートコマンドを実行するエントリーポイントです
+// Execute は、rootCmd を実行するメイン関数です。
+// main.go から呼び出されます。
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
-		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 }
