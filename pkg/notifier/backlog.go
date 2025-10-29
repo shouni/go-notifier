@@ -14,7 +14,7 @@ import (
 )
 
 // BacklogNotifier は Backlog 課題登録用の API クライアントです。
-// Notifier インターフェースを満たします。
+// Notifier インターフェースを満たしますが、SendText および SendTextWithHeader は Backlog の利用方針（課題登録推奨）に基づきエラーを返します。
 type BacklogNotifier struct {
 	client  httpclient.HTTPClient // 汎用クライアント (リトライ機能込み)
 	baseURL string
@@ -50,6 +50,7 @@ func (e *BacklogError) Error() string {
 }
 
 // cleanStringFromEmojis は、文字列から絵文字を削除します。
+// NOTE: この関数は、BacklogNotifierの依存関係を満たすため、このファイルに含めます。
 func cleanStringFromEmojis(s string) string {
 	return gomoji.RemoveEmojis(s)
 }
@@ -71,8 +72,6 @@ func NewBacklogNotifier(client httpclient.HTTPClient, spaceURL string, apiKey st
 		apiKey:  apiKey,
 	}, nil
 }
-
-// --- Notifier インターフェース実装 ---
 
 // SendIssue は、Backlogに新しい課題を登録します。
 func (c *BacklogNotifier) SendIssue(ctx context.Context, summary, description string, projectID, issueTypeID, priorityID int) error {
@@ -107,13 +106,13 @@ func (c *BacklogNotifier) SendIssue(ctx context.Context, summary, description st
 // SendText は Backlog では課題登録を推奨するため、エラーを返します。
 // Notifier インターフェース (ヘッダーなし) を満たすための実装です。
 func (c *BacklogNotifier) SendText(ctx context.Context, message string) error {
-	return errors.New("BacklogNotifier cannot send plain text; use SendIssue or PostComment instead")
+	return errors.New("BacklogNotifier: Text notification is unsupported; use SendIssue or PostComment instead")
 }
 
 // SendTextWithHeader は Backlog では課題登録を推奨するため、エラーを返します。
 // Notifier インターフェース (ヘッダーあり) を満たすための実装です。
 func (c *BacklogNotifier) SendTextWithHeader(ctx context.Context, headerText string, message string) error {
-	return errors.New("BacklogNotifier cannot send plain text with header; use SendIssue or PostComment instead")
+	return errors.New("BacklogNotifier: Text notification is unsupported; use SendIssue or PostComment instead")
 }
 
 // PostComment は指定された課題IDにコメントを投稿します。
