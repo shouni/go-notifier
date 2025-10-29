@@ -156,9 +156,16 @@ func (s *SlackNotifier) SendTextWithHeader(ctx context.Context, headerText strin
 // SendText は、プレーンテキストメッセージを通知します。（ヘッダーなし）
 // Notifier インターフェースを満たすため、SendTextWithHeader にデフォルトヘッダーを付けてフォールバックします。
 func (s *SlackNotifier) SendText(ctx context.Context, message string) error {
-	const defaultHeader = "📢 通知メッセージ"
-	// ヘッダーなしのインターフェースだが、内部ではヘッダー付きとして処理する
-	return s.SendTextWithHeader(ctx, defaultHeader, message)
+	// メッセージの最初の行をヘッダーとして利用する例
+	header := "📢 通知メッセージ"
+	if len(message) > 0 {
+		firstLine := strings.SplitN(message, "\n", 2)[0]
+		if len(firstLine) > 50 { // ヘッダーが長くなりすぎないように調整
+			firstLine = firstLine[:50] + "..."
+		}
+		header = fmt.Sprintf("📢 %s", firstLine)
+	}
+	return s.SendTextWithHeader(ctx, header, message)
 }
 
 // SendIssue は Slack では課題登録機能が標準ではないため、SendTextWithHeaderにフォールバックします。
