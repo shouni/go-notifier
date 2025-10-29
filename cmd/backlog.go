@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"os"
 	"strconv"
@@ -19,25 +20,33 @@ var (
 	issueID      string
 )
 
-// --- サブコマンド: backlog ---
+// 実行前に rootCmd の PersistentPreRun で sharedClient が初期化されている必要があります。
+func getBacklogNotifier() (*notifier.BacklogNotifier, error) {
+	backlogSpaceURL := os.Getenv("BACKLOG_SPACE_URL")
+	backlogAPIKey := os.Getenv("BACKLOG_API_KEY")
+	if backlogSpaceURL == "" || backlogAPIKey == "" {
+		return nil, fmt.Errorf("BACKLOG_SPACE_URL または BACKLOG_API_KEY 環境変数が設定されていません")
+	}
+	// sharedClient は rootCmd の PersistentPreRun で初期化されます
+	return notifier.NewBacklogNotifier(sharedClient, backlogSpaceURL, backlogAPIKey)
+}
 
-// backlogCmd は Cobra の Backlog 課題登録用サブコマンドです（ルートコマンドとしても機能）
+// --- サブコマンド: backlog (課題登録) ---
+
+// backlogCmd は Cobra の Backlog 課題登録用サブコマンドです
 var backlogCmd = &cobra.Command{
 	Use:   "backlog",
 	Short: "Backlogへの課題登録またはコメント投稿を管理します",
 	Long:  `環境変数 BACKLOG_SPACE_URL と BACKLOG_API_KEY が設定されている必要があります。`,
 	Run: func(cmd *cobra.Command, args []string) {
-		// 引数がない場合、デフォルトで課題登録機能を実行
-		// 課題登録ロジック
 		if inputMessage == "" {
 			log.Fatal("🚨 致命的なエラー: 投稿メッセージがありません。-m フラグでメッセージを指定してください。")
 		}
 
-		// 環境変数のチェックと定義
-		backlogSpaceURL := os.Getenv("BACKLOG_SPACE_URL")
-		backlogAPIKey := os.Getenv("BACKLOG_API_KEY")
-		if backlogSpaceURL == "" || backlogAPIKey == "" {
-			log.Fatal("🚨 致命的なエラー: BACKLOG_SPACE_URL または BACKLOG_API_KEY 環境変数が設定されていません。")
+		backlogNotifier, err := getBacklogNotifier()
+		if err != nil {
+			// 環境変数エラーもここでハンドリングされる
+			log.Fatalf("🚨 Backlog Notifierの初期化に失敗しました: %v", err)
 		}
 
 		// プロジェクトIDの取得とチェック
@@ -56,12 +65,6 @@ var backlogCmd = &cobra.Command{
 
 		if summary == "" {
 			log.Fatal("🚨 致命的なエラー: 課題のサマリーとなるテキストがありません。")
-		}
-
-		// Notifier の初期化
-		backlogNotifier, err := notifier.NewBacklogNotifier(sharedClient, backlogSpaceURL, backlogAPIKey)
-		if err != nil {
-			log.Fatalf("🚨 Backlog Notifierの初期化に失敗しました: %v", err)
 		}
 
 		// 2. 投稿実行（SendIssueを使用）
@@ -90,20 +93,18 @@ var commentCmd = &cobra.Command{
 		if inputMessage == "" {
 			log.Fatal("🚨 致命的なエラー: 投稿メッセージがありません。-m フラグでメッセージを指定してください。")
 		}
+
 		if issueID == "" {
-			log.Fatal("🚨 致命的なエラー: --issue-key フラグでコメント対象の課題キーを指定してください。")
+			log.Fatal("🚨 致命的なエラー: --issue-id フラグでコメント対象の課題キーを指定してください。")
 		}
 
-		// 環境変数のチェックと定義 (backlogCmd と共通)
-		backlogSpaceURL := os.Getenv("BACKLOG_SPACE_URL")
-		backlogAPIKey := os.Getenv("BACKLOG_API_KEY")
-		if backlogSpaceURL == "" || backlogAPIKey == "" {
-			log.Fatal("🚨 致命的なエラー: BACKLOG_SPACE_URL または BACKLOG_API_KEY 環境変数が設定されていません。")
+		if !strings.Contains(issueID, "-") {
+			log.Fatalf("🚨 致命的なエラー: --issue-id の値が不正な形式です。例: PROJECT-123 (含まれているハイフンがありません)")
 		}
 
-		// Notifier の初期化
-		backlogNotifier, err := notifier.NewBacklogNotifier(sharedClient, backlogSpaceURL, backlogAPIKey)
+		backlogNotifier, err := getBacklogNotifier()
 		if err != nil {
+			// 環境変数エラーもここでハンドリングされる
 			log.Fatalf("🚨 Backlog Notifierの初期化に失敗しました: %v", err)
 		}
 
@@ -125,7 +126,6 @@ func init() {
 	backlogCmd.Flags().StringVarP(&projectIDStr, "project-id", "p", projectIDStr, "【必須】課題を登録する Backlog のプロジェクトID (ENV: BACKLOG_PROJECT_ID)")
 	backlogCmd.Flags().IntVarP(&issueTypeID, "issue-type-id", "t", 101, "課題の種別ID（例: 101 for タスク）")
 	backlogCmd.Flags().IntVarP(&priorityID, "priority-id", "r", 3, "課題の優先度ID（例: 3 for 中）")
-	commentCmd.Flags().StringVarP(&issueID, "issue-id", "i", "", "【必須】コメントを投稿する課題のキー（例: PROJECT-123）")
-	rootCmd.AddCommand(backlogCmd)
+	commentCmd.Flags().StringVarP(&issueID, "issue-id", "i", "", "【必須】コメントを投稿する Backlog 課題 ID (例: PROJECT-123)")
 	backlogCmd.AddCommand(commentCmd)
 }
