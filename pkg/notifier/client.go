@@ -17,6 +17,7 @@ type Notifier interface {
 	SendTextWithHeader(ctx context.Context, headerText string, message string) error
 
 	// SendIssue は、Backlogなどの課題管理システムに課題を登録します。
+	// summary, description に加え、Backlogの必須フィールドである projectID, issueTypeID, priorityID を引数に含めます。
 	SendIssue(ctx context.Context, summary, description string, projectID, issueTypeID, priorityID int) error
 }
 
@@ -75,8 +76,8 @@ func (c *ContentNotifier) Notify(ctx context.Context, url string, backlogProject
 		if backlogProjectID != 0 {
 			// Backlogへの課題登録を試みる
 			// issueTypeID と priorityID が0の場合、APIエラーを回避するためバリデーションを行う
-			if issueTypeID == 0 || priorityID == 0 {
-				allErrors = append(allErrors, fmt.Errorf("Notifier (%T): issueTypeID (%d) and priorityID (%d) must be non-zero for SendIssue", n, issueTypeID, priorityID))
+			if issueTypeID == 0 || priorityID == 0 { // Backlog APIの仕様上、これらのIDは必須
+				allErrors = append(allErrors, fmt.Errorf("Notifier (%T): Backlogへの課題登録には issueTypeID (%d) と priorityID (%d) が非ゼロである必要があります", n, issueTypeID, priorityID))
 				continue // このNotifierへの通知をスキップ
 			}
 
