@@ -1,4 +1,4 @@
-module go-notifier
+module github.com/shouni/go-notifier
 
 go 1.25
 
