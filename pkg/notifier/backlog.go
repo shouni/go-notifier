@@ -115,6 +115,10 @@ func (c *BacklogNotifier) SendTextWithHeader(ctx context.Context, headerText str
 
 // PostComment は指定された課題IDにコメントを投稿します。
 func (c *BacklogNotifier) PostComment(ctx context.Context, issueID string, content string) error {
+	if issueID == "" {
+		return errors.New("issueID cannot be empty for posting a comment")
+	}
+
 	// 1. 絵文字のサニタイズ (Backlogの制限対策)
 	sanitizedContent := util.CleanStringFromEmojis(content) // 修正: 大文字始まりの関数を呼び出し
 
