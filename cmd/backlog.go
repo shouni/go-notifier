@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"go-notifier/pkg/notifier"
+	"github.com/shouni/go-notifier/pkg/notifier"
 
 	"github.com/spf13/cobra"
 )
