@@ -33,7 +33,6 @@ var slackCmd = &cobra.Command{
 		}
 
 		// Notifierの初期化
-		// 💡 修正: Slack固有のオプションを引数に追加
 		slackNotifier := notifier.NewSlackNotifier(
 			sharedClient,
 			slackWebhookURL,
@@ -52,8 +51,7 @@ var slackCmd = &cobra.Command{
 }
 
 func init() {
-	// Slack コマンド固有のフラグを定義
-	slackCmd.Flags().StringVar(&slackUsername, "username", os.Getenv("SLACK_USERNAME"), "Slack投稿時のユーザー名 (ENV: SLACK_USERNAME)")
-	slackCmd.Flags().StringVar(&slackIconEmoji, "icon-emoji", os.Getenv("SLACK_ICON_EMOJI"), "Slack投稿時の絵文字アイコン (ENV: SLACK_ICON_EMOJI)")
-	slackCmd.Flags().StringVar(&slackChannel, "channel", os.Getenv("SLACK_CHANNEL"), "Slack投稿先のチャンネル（例: #general）(ENV: SLACK_CHANNEL)")
+	slackCmd.Flags().StringVarP(&slackUsername, "username", "u", os.Getenv("SLACK_USERNAME"), "Slack投稿時のユーザー名 (ENV: SLACK_USERNAME)")
+	slackCmd.Flags().StringVarP(&slackIconEmoji, "icon-emoji", "e", os.Getenv("SLACK_ICON_EMOJI"), "Slack投稿時の絵文字アイコン (ENV: SLACK_ICON_EMOJI)")
+	slackCmd.Flags().StringVarP(&slackChannel, "channel", "c", os.Getenv("SLACK_CHANNEL"), "Slack投稿先のチャンネル（例: #general）(ENV: SLACK_CHANNEL)")
 }

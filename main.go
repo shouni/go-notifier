@@ -2,7 +2,7 @@
 package main
 
 import (
-	"go_notifier/cmd"
+	"github.com/shouni/go-notifier/cmd"
 )
 
 func main() {
