@@ -107,14 +107,41 @@ func (c *BacklogNotifier) SendIssue(ctx context.Context, summary, description st
 // SendText は Backlog では課題登録を推奨するため、エラーを返します。
 // Notifier インターフェース (ヘッダーなし) を満たすための実装です。
 func (c *BacklogNotifier) SendText(ctx context.Context, message string) error {
-	return errors.New("BacklogNotifier cannot send plain text; use SendIssue with a project ID and issue details instead")
+	return errors.New("BacklogNotifier cannot send plain text; use SendIssue or PostComment instead")
 }
 
 // SendTextWithHeader は Backlog では課題登録を推奨するため、エラーを返します。
 // Notifier インターフェース (ヘッダーあり) を満たすための実装です。
 func (c *BacklogNotifier) SendTextWithHeader(ctx context.Context, headerText string, message string) error {
-	// headerText は summary として使用可能だが、ここではシンプルに SendIssue の利用を促す
-	return errors.New("BacklogNotifier cannot send plain text with header; use SendIssue with a project ID and issue details instead")
+	return errors.New("BacklogNotifier cannot send plain text with header; use SendIssue or PostComment instead")
+}
+
+// PostComment は指定された課題IDにコメントを投稿します。
+func (c *BacklogNotifier) PostComment(ctx context.Context, issueID string, content string) error {
+	// 1. 絵文字のサニタイズ (Backlogの制限対策)
+	sanitizedContent := cleanStringFromEmojis(content)
+
+	// 2. ペイロードの構築
+	commentData := map[string]string{
+		"content": sanitizedContent,
+	}
+	jsonBody, err := json.Marshal(commentData)
+	if err != nil {
+		return fmt.Errorf("failed to marshal comment data: %w", err)
+	}
+
+	// 3. APIリクエストの実行
+	// エンドポイント: /issues/{issueIdOrKey}/comments
+	endpoint := fmt.Sprintf("/issues/%s/comments", issueID)
+
+	// c.postRequest を使用してコメントを投稿
+	err = c.postRequest(ctx, endpoint, jsonBody)
+	if err != nil {
+		return fmt.Errorf("failed to post comment to Backlog issue %s: %w", issueID, err)
+	}
+
+	fmt.Printf("✅ Backlog issue %s successfully commented.\n", issueID)
+	return nil
 }
 
 // postRequest は、指定されたエンドポイントへリクエストを送信する内部ヘルパーメソッドです。
