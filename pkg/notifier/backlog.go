@@ -50,7 +50,8 @@ func (e *BacklogError) Error() string {
 }
 
 // cleanStringFromEmojis は、文字列から絵文字を削除します。
-// NOTE: この関数は、BacklogNotifierの依存関係を満たすため、このファイルに含めます。
+// NOTE: 現状はBacklogNotifier専用としてこのファイルに配置していますが、
+// 他のNotifierでも同様の処理が必要になった場合は、共通のユーティリティパッケージへの移動を検討してください。
 func cleanStringFromEmojis(s string) string {
 	return gomoji.RemoveEmojis(s)
 }
@@ -72,6 +73,8 @@ func NewBacklogNotifier(client httpclient.HTTPClient, spaceURL string, apiKey st
 		apiKey:  apiKey,
 	}, nil
 }
+
+// --- Notifier インターフェース実装 ---
 
 // SendIssue は、Backlogに新しい課題を登録します。
 func (c *BacklogNotifier) SendIssue(ctx context.Context, summary, description string, projectID, issueTypeID, priorityID int) error {
@@ -106,14 +109,16 @@ func (c *BacklogNotifier) SendIssue(ctx context.Context, summary, description st
 // SendText は Backlog では課題登録を推奨するため、エラーを返します。
 // Notifier インターフェース (ヘッダーなし) を満たすための実装です。
 func (c *BacklogNotifier) SendText(ctx context.Context, message string) error {
-	return errors.New("BacklogNotifier: Text notification is unsupported; use SendIssue or PostComment instead")
+	return errors.New("BacklogNotifier: Plain text notification is not supported; use SendIssue or PostComment")
 }
 
 // SendTextWithHeader は Backlog では課題登録を推奨するため、エラーを返します。
 // Notifier インターフェース (ヘッダーあり) を満たすための実装です。
 func (c *BacklogNotifier) SendTextWithHeader(ctx context.Context, headerText string, message string) error {
-	return errors.New("BacklogNotifier: Text notification is unsupported; use SendIssue or PostComment instead")
+	return errors.New("BacklogNotifier: Plain text notification is not supported; use SendIssue or PostComment")
 }
+
+// --- コメント投稿機能の追加 ---
 
 // PostComment は指定された課題IDにコメントを投稿します。
 func (c *BacklogNotifier) PostComment(ctx context.Context, issueID string, content string) error {

@@ -41,15 +41,29 @@ func (c *ContentNotifier) AddNotifier(n Notifier) {
 
 // Notify は、指定されたURLからコンテンツを抽出し、すべてのNotifierに通知します。
 //
-// NOTE: 今回の改善では、抽出されたサマリーを 'headerText' として、詳細を 'message' として
-// SendTextWithHeader メソッドに渡すロジックを採用します。
+// NOTE: NotifierはSendText/SendTextWithHeaderをサポートしない場合エラーを返すことがあり、
+// その場合、エラーは収集され呼び出し元に返されます。BacklogNotifierが登録されており、
+// backlogProjectIDが0の場合、BacklogNotifierはテキスト通知をサポートしないため通知に失敗します。
 func (c *ContentNotifier) Notify(ctx context.Context, url string, backlogProjectID, issueTypeID, priorityID int) error {
-	// 1. Webコンテンツの抽出 (実際には c.extractor を使用)
-	// summary, description, err := c.extractor.Extract(ctx, url)
+	// 1. Webコンテンツの抽出 (c.extractor を使用)
+	// hasBodyFound は現在未使用のため、アンダースコア (_) で無視します。
+	text, _, err := c.extractor.FetchAndExtractText(url, ctx)
+	if err != nil {
+		return fmt.Errorf("failed to fetch and extract content from URL %s: %w", url, err)
+	}
 
-	// 処理の簡易化のため、ここではダミーデータを使用します。
-	summary := "ウェブコンテンツ通知サマリー"
-	description := "ウェブコンテンツ詳細: " + url
+	// 抽出されたテキストをサマリーと詳細に分割
+	var summary string
+	var description string
+
+	// 最初の行をサマリーとして使用
+	lines := strings.SplitN(text, "\n\n", 2)
+	summary = lines[0]
+	if len(lines) > 1 {
+		description = lines[1]
+	} else {
+		description = summary // 本文がない場合はサマリーを本文として使用
+	}
 
 	var allErrors []error
 
@@ -58,12 +72,14 @@ func (c *ContentNotifier) Notify(ctx context.Context, url string, backlogProject
 		var notifyErr error
 
 		// Backlogなどの課題登録が可能なNotifierに対しては SendIssue を優先
-		// それ以外には、ヘッダー付きのテキスト通知 (SendTextWithHeader) を使用
-
-		// Notifierの具体的な実装によらず、ContentNotifierがどのように振る舞うかを定義
-		// ここでは、Issue登録パラメータがあればIssueとして通知、そうでなければHeader付きTextとして通知する
 		if backlogProjectID != 0 {
 			// Backlogへの課題登録を試みる
+			// issueTypeID と priorityID が0の場合、APIエラーを回避するためバリデーションを行う
+			if issueTypeID == 0 || priorityID == 0 {
+				allErrors = append(allErrors, fmt.Errorf("Notifier (%T): issueTypeID (%d) and priorityID (%d) must be non-zero for SendIssue", n, issueTypeID, priorityID))
+				continue // このNotifierへの通知をスキップ
+			}
+
 			notifyErr = n.SendIssue(ctx, summary, description, backlogProjectID, issueTypeID, priorityID)
 		} else {
 			// ヘッダー付きテキストとして通知
