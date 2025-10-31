@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"strconv"
 	"strings"
 
 	"github.com/shouni/go-notifier/pkg/notifier"
@@ -50,7 +49,7 @@ var backlogCmd = &cobra.Command{
 		}
 
 		// プロジェクトIDの取得とチェック
-		projectID, err := strconv.Atoi(projectIDStr)
+		projectID, err := backlogNotifier.GetProjectID(context.Background(), projectIDStr)
 		if err != nil || projectID <= 0 {
 			log.Fatalf("🚨 致命的なエラー: --project-id の値が不正です: %v", err)
 		}

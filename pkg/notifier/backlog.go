@@ -76,8 +76,8 @@ func NewBacklogNotifier(client request.Client, spaceURL string, apiKey string) (
 
 // --- Notifier インターフェース実装 ---
 
-// getProjectID は、プロジェクトキー（文字列）を受け取り、プロジェクトID（整数）を取得します。
-func (c *BacklogNotifier) getProjectID(ctx context.Context, projectKey string) (int, error) {
+// GetProjectID は、プロジェクトキー（文字列）を受け取り、プロジェクトID（整数）を取得します。
+func (c *BacklogNotifier) GetProjectID(ctx context.Context, projectKey string) (int, error) {
 	if projectKey == "" {
 		return 0, errors.New("プロジェクトIDまたはキーは空にできません")
 	}
