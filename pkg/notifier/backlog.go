@@ -21,6 +21,13 @@ type BacklogNotifier struct {
 	apiKey  string
 }
 
+// プロジェクトキーまたはIDで取得した際のレスポンスを扱います。
+type BacklogProjectResponse struct {
+	ID   int    `json:"id"`
+	Key  string `json:"projectKey"`
+	Name string `json:"name"`
+}
+
 // BacklogIssuePayload は課題登録API (/issues) に必要なペイロードです。
 type BacklogIssuePayload struct {
 	ProjectID   int    `json:"projectId"`
@@ -68,6 +75,35 @@ func NewBacklogNotifier(client request.Client, spaceURL string, apiKey string) (
 }
 
 // --- Notifier インターフェース実装 ---
+
+// getProjectID は、プロジェクトキー（文字列）を受け取り、プロジェクトID（整数）を取得します。
+func (c *BacklogNotifier) getProjectID(ctx context.Context, projectKey string) (int, error) {
+	if projectKey == "" {
+		return 0, errors.New("プロジェクトIDまたはキーは空にできません")
+	}
+	endpoint := fmt.Sprintf("/projects/%s", projectKey)
+	fullURL := fmt.Sprintf("%s%s?apiKey=%s", c.baseURL, endpoint, c.apiKey)
+
+	data, err := c.client.FetchBytes(fullURL, ctx)
+	if err != nil {
+		// FetchBytes がすでにリトライ済みのため、そのままエラーを返す
+		return 0, fmt.Errorf("Backlog APIへのプロジェクト情報取得リクエストに失敗: %w", err)
+	}
+
+	// 3. JSONのパース
+	var projectResp BacklogProjectResponse
+	if err := json.Unmarshal(data, &projectResp); err != nil {
+		return 0, fmt.Errorf("プロジェクト情報レスポンスのパースに失敗しました (データ: %s): %w", string(data), err)
+	}
+
+	// 4. IDのチェック
+	if projectResp.ID == 0 {
+		// APIが200 OKを返したがIDがない場合（通常は発生しないが安全のため）
+		return 0, fmt.Errorf("BacklogからプロジェクトIDを取得できませんでした (キー: %s)", projectKey)
+	}
+
+	return projectResp.ID, nil
+}
 
 // SendIssue は、Backlogに新しい課題を登録します。
 func (c *BacklogNotifier) SendIssue(ctx context.Context, summary, description string, projectID, issueTypeID, priorityID int) error {
