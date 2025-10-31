@@ -51,7 +51,11 @@ var backlogCmd = &cobra.Command{
 
 		// 🚨 修正点1: 課題サマリーのチェックで Flags.Header を使用
 		if Flags.Title == "" {
-			log.Fatal("🚨 致命的なエラー: 課題のサマリーとなるテキストがありません。-H フラグでヘッダーを指定してください。")
+			log.Fatal("🚨 致命的なエラー: 課題のタイトルがありません。-t フラグでタイトルを指定してください。")
+		}
+
+		if Flags.Message == "" {
+			log.Fatal("🚨 致命的なエラー: 課題のメッセージがありません。-m フラグでメッセージを指定してください。")
 		}
 
 		// 2. 投稿実行（SendIssueを使用）
