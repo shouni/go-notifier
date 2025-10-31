@@ -118,7 +118,6 @@ func (c *BacklogNotifier) GetProjectID(ctx context.Context, projectKey string) (
 }
 
 // getFirstIssueAttributes は、指定されたプロジェクトの最初の有効な IssueTypeID と PriorityID を取得します。
-// getFirstIssueAttributes は、指定されたプロジェクトの最初の有効な IssueTypeID と PriorityID を取得します。
 func (c *BacklogNotifier) getFirstIssueAttributes(ctx context.Context, projectID int) (issueTypeID int, priorityID int, err error) {
 	// 1. 課題種別 (Issue Types) の取得
 	// エンドポイント: /projects/{projectId}/issueTypes
