@@ -18,7 +18,7 @@ type Notifier interface {
 
 	// SendIssue は、Backlogなどの課題管理システムに課題を登録します。
 	// summary, description に加え、Backlogの必須フィールドである projectID, issueTypeID, priorityID を引数に含めます。
-	SendIssue(ctx context.Context, summary, description string, projectID, issueTypeID, priorityID int) error
+	SendIssue(ctx context.Context, summary, description string, projectID int) error
 }
 
 // ContentNotifier は、Web抽出と複数のNotifierへの通知を管理します。
@@ -45,7 +45,7 @@ func (c *ContentNotifier) AddNotifier(n Notifier) {
 // NOTE: NotifierはSendText/SendTextWithHeaderをサポートしない場合エラーを返すことがあり、
 // その場合、エラーは収集され呼び出し元に返されます。BacklogNotifierが登録されており、
 // backlogProjectIDが0の場合、BacklogNotifierはテキスト通知をサポートしないため通知に失敗します。
-func (c *ContentNotifier) Notify(ctx context.Context, url string, backlogProjectID, issueTypeID, priorityID int) error {
+func (c *ContentNotifier) Notify(ctx context.Context, url string, backlogProjectID int) error {
 	// 1. Webコンテンツの抽出 (c.extractor を使用)
 	// hasBodyFound は現在未使用のため、アンダースコア (_) で無視します。
 	text, _, err := c.extractor.FetchAndExtractText(url, ctx)
@@ -74,15 +74,7 @@ func (c *ContentNotifier) Notify(ctx context.Context, url string, backlogProject
 
 		// Backlogなどの課題登録が可能なNotifierに対しては SendIssue を優先
 		if backlogProjectID != 0 {
-			// BacklogNotifierの場合のみ、issueTypeIDとpriorityIDのバリデーションを行う
-			if _, ok := n.(*BacklogNotifier); ok {
-				if issueTypeID == 0 || priorityID == 0 { // Backlog APIの仕様上、これらのIDは必須
-					allErrors = append(allErrors, fmt.Errorf("Notifier (%T): Backlogへの課題登録には issueTypeID (%d) と priorityID (%d) が非ゼロである必要があります", n, issueTypeID, priorityID))
-					continue // このNotifierへの通知をスキップ
-				}
-			}
-
-			notifyErr = n.SendIssue(ctx, summary, description, backlogProjectID, issueTypeID, priorityID)
+			notifyErr = n.SendIssue(ctx, summary, description, backlogProjectID)
 		} else {
 			// ヘッダー付きテキストとして通知
 			notifyErr = n.SendTextWithHeader(ctx, summary, description)

@@ -21,6 +21,25 @@ type BacklogNotifier struct {
 	apiKey  string
 }
 
+// プロジェクトキーまたはIDで取得した際のレスポンスを扱います。
+type BacklogProjectResponse struct {
+	ID   int    `json:"id"`
+	Key  string `json:"projectKey"`
+	Name string `json:"name"`
+}
+
+// BacklogIssueTypeResponse は課題種別の最小限の構造体です。
+type BacklogIssueTypeResponse struct {
+	ID   int    `json:"id"`
+	Name string `json:"name"`
+}
+
+// BacklogPriorityResponse は優先度の最小限の構造体です。
+type BacklogPriorityResponse struct {
+	ID   int    `json:"id"`
+	Name string `json:"name"`
+}
+
 // BacklogIssuePayload は課題登録API (/issues) に必要なペイロードです。
 type BacklogIssuePayload struct {
 	ProjectID   int    `json:"projectId"`
@@ -69,19 +88,119 @@ func NewBacklogNotifier(client request.Client, spaceURL string, apiKey string) (
 
 // --- Notifier インターフェース実装 ---
 
+// GetProjectID は、プロジェクトキー（文字列）を受け取り、プロジェクトID（整数）を取得します。
+func (c *BacklogNotifier) GetProjectID(ctx context.Context, projectKey string) (int, error) {
+	if projectKey == "" {
+		return 0, errors.New("プロジェクトIDまたはキーは空にできません")
+	}
+	endpoint := fmt.Sprintf("/projects/%s", projectKey)
+	fullURL := fmt.Sprintf("%s%s?apiKey=%s", c.baseURL, endpoint, c.apiKey)
+
+	data, err := c.client.FetchBytes(fullURL, ctx)
+	if err != nil {
+		// FetchBytes がすでにリトライ済みのため、そのままエラーを返す
+		return 0, fmt.Errorf("Backlog APIへのプロジェクト情報取得リクエストに失敗: %w", err)
+	}
+
+	// 3. JSONのパース
+	var projectResp BacklogProjectResponse
+	if err := json.Unmarshal(data, &projectResp); err != nil {
+		return 0, fmt.Errorf("プロジェクト情報レスポンスのパースに失敗しました (データ: %s): %w", string(data), err)
+	}
+
+	// 4. IDのチェック
+	if projectResp.ID == 0 {
+		// APIが200 OKを返したがIDがない場合（通常は発生しないが安全のため）
+		return 0, fmt.Errorf("BacklogからプロジェクトIDを取得できませんでした (キー: %s)", projectKey)
+	}
+
+	return projectResp.ID, nil
+}
+
+// getFirstIssueAttributes は、指定されたプロジェクトの最初の有効な IssueTypeID と PriorityID を取得します。
+func (c *BacklogNotifier) getFirstIssueAttributes(ctx context.Context, projectID int) (issueTypeID int, priorityID int, err error) {
+	// 1. 課題種別 (Issue Types) の取得
+	// エンドポイント: /projects/{projectId}/issueTypes
+	issueTypeURL := fmt.Sprintf("%s/projects/%d/issueTypes?apiKey=%s", c.baseURL, projectID, c.apiKey)
+	issueTypeData, fetchErr := c.client.FetchBytes(issueTypeURL, ctx)
+	if fetchErr != nil {
+		return 0, 0, fmt.Errorf("課題種別リストの取得に失敗: %w", fetchErr)
+	}
+
+	var issueTypes []BacklogIssueTypeResponse
+	if err := json.Unmarshal(issueTypeData, &issueTypes); err != nil {
+		return 0, 0, fmt.Errorf("課題種別リストのパースに失敗しました (ProjectID: %d): %w", projectID, err)
+	}
+
+	// 💡 修正ロジック: "タスク" を優先して探す
+	foundIssueTypeID := 0
+	for _, it := range issueTypes {
+		if it.Name == "タスク" { // あるいは設定可能なデフォルト値
+			foundIssueTypeID = it.ID
+			break
+		}
+	}
+	if foundIssueTypeID == 0 && len(issueTypes) > 0 {
+		foundIssueTypeID = issueTypes[0].ID // 見つからなければ最初のものをデフォルトとする
+	}
+	if foundIssueTypeID == 0 {
+		return 0, 0, fmt.Errorf("プロジェクトの課題種別が見つかりませんでした (ProjectID: %d)", projectID)
+	}
+	issueTypeID = foundIssueTypeID // 採用
+
+	// 2. 優先度 (Priorities) の取得
+	// エンドポイント: /priorities (優先度はプロジェクト共通だが、念のため取得)
+	priorityURL := fmt.Sprintf("%s/priorities?apiKey=%s", c.baseURL, c.apiKey)
+	priorityData, fetchErr := c.client.FetchBytes(priorityURL, ctx)
+	if fetchErr != nil {
+		return 0, 0, fmt.Errorf("優先度リストの取得に失敗: %w", fetchErr)
+	}
+
+	var priorities []BacklogPriorityResponse
+	if err := json.Unmarshal(priorityData, &priorities); err != nil {
+		return 0, 0, fmt.Errorf("優先度リストのパースに失敗しました: %w", err)
+	}
+
+	// 💡 修正ロジック: "中" を優先して探す
+	foundPriorityID := 0
+	for _, p := range priorities {
+		if p.Name == "中" { // あるいは設定可能なデフォルト値
+			foundPriorityID = p.ID
+			break
+		}
+	}
+	if foundPriorityID == 0 && len(priorities) > 0 {
+		foundPriorityID = priorities[0].ID // 見つからなければ最初のものをデフォルトとする
+	}
+	if foundPriorityID == 0 {
+		return 0, 0, fmt.Errorf("優先度が見つかりませんでした")
+	}
+	priorityID = foundPriorityID // 採用
+
+	return issueTypeID, priorityID, nil
+}
+
 // SendIssue は、Backlogに新しい課題を登録します。
-func (c *BacklogNotifier) SendIssue(ctx context.Context, summary, description string, projectID, issueTypeID, priorityID int) error {
+// func (c *BacklogNotifier) SendIssue(ctx context.Context, summary, description string, projectID, issueTypeID, priorityID int) error {
+func (c *BacklogNotifier) SendIssue(ctx context.Context, summary, description string, projectID int) error {
+
 	// 1. 絵文字のサニタイズ
-	sanitizedSummary := util.CleanStringFromEmojis(summary)         // 修正: 大文字始まりの関数を呼び出し
-	sanitizedDescription := util.CleanStringFromEmojis(description) // 修正: 大文字始まりの関数を呼び出し
+	sanitizedSummary := util.CleanStringFromEmojis(summary)
+	sanitizedDescription := util.CleanStringFromEmojis(description)
+
+	// 有効な ID を取得
+	validIssueTypeID, validPriorityID, err := c.getFirstIssueAttributes(ctx, projectID)
+	if err != nil {
+		return fmt.Errorf("プロジェクトの有効な課題属性の取得に失敗: %w", err)
+	}
 
 	// 2. ペイロードの構築
 	issueData := BacklogIssuePayload{
 		ProjectID:   projectID,
 		Summary:     sanitizedSummary,
 		Description: sanitizedDescription,
-		IssueTypeID: issueTypeID,
-		PriorityID:  priorityID,
+		IssueTypeID: validIssueTypeID,
+		PriorityID:  validPriorityID,
 	}
 
 	jsonBody, err := json.Marshal(issueData)
@@ -92,6 +211,7 @@ func (c *BacklogNotifier) SendIssue(ctx context.Context, summary, description st
 	// 3. APIリクエストの実行
 	err = c.postRequest(ctx, "/issues", jsonBody)
 	if err != nil {
+		// エラーを呼び出し元に返す
 		return fmt.Errorf("failed to create issue in Backlog: %w", err)
 	}
 
@@ -147,7 +267,7 @@ func (c *BacklogNotifier) PostComment(ctx context.Context, issueID string, conte
 
 // postRequest は、指定されたエンドポイントへリクエストを送信する内部ヘルパーメソッドです。
 func (c *BacklogNotifier) postRequest(ctx context.Context, endpoint string, jsonBody []byte) error {
-	fullURL := fmt.Sprintf("%s%s", c.baseURL, endpoint)
+	fullURL := fmt.Sprintf("%s%s?apiKey=%s", c.baseURL, endpoint, c.apiKey)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, fullURL, bytes.NewBuffer(jsonBody))
 	if err != nil {

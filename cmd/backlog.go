@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"strconv"
 	"strings"
 
 	"github.com/shouni/go-notifier/pkg/notifier"
@@ -15,8 +14,6 @@ import (
 // Backlog 固有の設定フラグ変数
 var (
 	projectIDStr string
-	issueTypeID  int
-	priorityID   int
 	issueID      string
 )
 
@@ -39,10 +36,6 @@ var backlogCmd = &cobra.Command{
 	Short: "Backlogへの課題登録またはコメント投稿を管理します",
 	Long:  `環境変数 BACKLOG_SPACE_URL と BACKLOG_API_KEY が設定されている必要があります。`,
 	Run: func(cmd *cobra.Command, args []string) {
-		if inputMessage == "" {
-			log.Fatal("🚨 致命的なエラー: 投稿メッセージがありません。-m フラグでメッセージを指定してください。")
-		}
-
 		backlogNotifier, err := getBacklogNotifier()
 		if err != nil {
 			// 環境変数エラーもここでハンドリングされる
@@ -50,31 +43,22 @@ var backlogCmd = &cobra.Command{
 		}
 
 		// プロジェクトIDの取得とチェック
-		projectID, err := strconv.Atoi(projectIDStr)
-		if err != nil || projectID <= 0 {
-			log.Fatalf("🚨 致命的なエラー: --project-id の値が不正です: %v", err)
+		projectID, err := backlogNotifier.GetProjectID(context.Background(), projectIDStr)
+		if err != nil {
+			log.Fatalf("🚨 致命的なエラー: プロジェクトIDの取得に失敗しました: %v", err)
 		}
 
-		// 1. サマリーと説明への分割 (課題登録用)
-		lines := strings.SplitN(inputMessage, "\n", 2)
-		summary := strings.TrimSpace(lines[0])
-		description := ""
-		if len(lines) > 1 {
-			description = strings.TrimSpace(lines[1])
-		}
-
-		if summary == "" {
-			log.Fatal("🚨 致命的なエラー: 課題のサマリーとなるテキストがありません。")
+		// 新規課題登録ではサマリー（inputHeader）は必須
+		if inputHeader == "" {
+			log.Fatal("🚨 致命的なエラー: 課題のサマリーとなるテキストがありません。-h フラグでヘッダーを指定してください。")
 		}
 
 		// 2. 投稿実行（SendIssueを使用）
 		if err := backlogNotifier.SendIssue(
 			context.Background(),
-			summary,
-			description,
+			inputHeader,  // Backlogの課題サマリーとして使用
+			inputMessage, // Backlogの課題説明として使用
 			projectID,
-			issueTypeID,
-			priorityID,
 		); err != nil {
 			log.Fatalf("🚨 Backlogへの投稿に失敗しました: %v", err)
 		}
@@ -124,8 +108,6 @@ var commentCmd = &cobra.Command{
 func init() {
 	projectIDStr = os.Getenv("BACKLOG_PROJECT_ID")
 	backlogCmd.Flags().StringVarP(&projectIDStr, "project-id", "p", projectIDStr, "【必須】課題を登録する Backlog のプロジェクトID (ENV: BACKLOG_PROJECT_ID)")
-	backlogCmd.Flags().IntVarP(&issueTypeID, "issue-type-id", "t", 101, "課題の種別ID（例: 101 for タスク）")
-	backlogCmd.Flags().IntVarP(&priorityID, "priority-id", "r", 3, "課題の優先度ID（例: 3 for 中）")
 	commentCmd.Flags().StringVarP(&issueID, "issue-id", "i", "", "【必須】コメントを投稿する Backlog 課題 ID (例: PROJECT-123)")
 	backlogCmd.AddCommand(commentCmd)
 }

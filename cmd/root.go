@@ -9,9 +9,9 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// 設定フラグのグローバル変数 (すべてのサブコマンドで参照可能)
 var (
-	inputMessage string // -m フラグで受け取る投稿メッセージ
+	inputHeader  string // -h フラグで受け取る投稿ヘッダー、BacklogのサマリーやSlackのヘッダーに使用
+	inputMessage string // -m フラグで受け取る投稿メッセージ、Backlogの課題説明やSlackの本文に使用
 	timeoutSec   int    // HTTPリクエストのタイムアウト時間（秒）
 )
 
@@ -25,7 +25,7 @@ var sharedClient *request.Client
 
 // rootCmd はアプリケーションのベースとなるコマンド
 var rootCmd = &cobra.Command{
-	Use:   "go_notifier",
+	Use:   "notifier",
 	Short: "SlackとBacklogへの通知を管理するCLIツール",
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		timeout := time.Duration(timeoutSec) * time.Second
@@ -46,6 +46,7 @@ func Execute() {
 }
 
 func init() {
+	rootCmd.PersistentFlags().StringVarP(&inputHeader, "header", "h", "", "ヘッダー（テキスト）")
 	rootCmd.PersistentFlags().StringVarP(&inputMessage, "message", "m", "", "投稿するメッセージ（テキスト）")
 	rootCmd.PersistentFlags().IntVar(&timeoutSec, "timeout", defaultTimeoutSec, "HTTPリクエストのタイムアウト時間（秒）")
 
