@@ -10,8 +10,8 @@ import (
 )
 
 var (
-	inputHeader  string // -h フラグで受け取る投稿ヘッダー
-	inputMessage string // -m フラグで受け取る投稿メッセージ
+	inputHeader  string // -h フラグで受け取る投稿ヘッダー、BacklogのサマリーやSlackのヘッダーに使用
+	inputMessage string // -m フラグで受け取る投稿メッセージ、Backlogの課題説明やSlackの本文に使用
 	timeoutSec   int    // HTTPリクエストのタイムアウト時間（秒）
 )
 

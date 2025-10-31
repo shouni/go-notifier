@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"net/http"
 	"strings"
 
@@ -119,6 +118,7 @@ func (c *BacklogNotifier) GetProjectID(ctx context.Context, projectKey string) (
 }
 
 // getFirstIssueAttributes は、指定されたプロジェクトの最初の有効な IssueTypeID と PriorityID を取得します。
+// getFirstIssueAttributes は、指定されたプロジェクトの最初の有効な IssueTypeID と PriorityID を取得します。
 func (c *BacklogNotifier) getFirstIssueAttributes(ctx context.Context, projectID int) (issueTypeID int, priorityID int, err error) {
 	// 1. 課題種別 (Issue Types) の取得
 	// エンドポイント: /projects/{projectId}/issueTypes
@@ -129,10 +129,25 @@ func (c *BacklogNotifier) getFirstIssueAttributes(ctx context.Context, projectID
 	}
 
 	var issueTypes []BacklogIssueTypeResponse
-	if err := json.Unmarshal(issueTypeData, &issueTypes); err != nil || len(issueTypes) == 0 {
-		return 0, 0, fmt.Errorf("課題種別リストのパースまたは取得に失敗しました (ProjectID: %d)", projectID)
+	if err := json.Unmarshal(issueTypeData, &issueTypes); err != nil {
+		return 0, 0, fmt.Errorf("課題種別リストのパースに失敗しました (ProjectID: %d): %w", projectID, err)
 	}
-	issueTypeID = issueTypes[0].ID // 最初に見つかった課題種別のIDを採用
+
+	// 💡 修正ロジック: "タスク" を優先して探す
+	foundIssueTypeID := 0
+	for _, it := range issueTypes {
+		if it.Name == "タスク" { // あるいは設定可能なデフォルト値
+			foundIssueTypeID = it.ID
+			break
+		}
+	}
+	if foundIssueTypeID == 0 && len(issueTypes) > 0 {
+		foundIssueTypeID = issueTypes[0].ID // 見つからなければ最初のものをデフォルトとする
+	}
+	if foundIssueTypeID == 0 {
+		return 0, 0, fmt.Errorf("プロジェクトの課題種別が見つかりませんでした (ProjectID: %d)", projectID)
+	}
+	issueTypeID = foundIssueTypeID // 採用
 
 	// 2. 優先度 (Priorities) の取得
 	// エンドポイント: /priorities (優先度はプロジェクト共通だが、念のため取得)
@@ -143,11 +158,25 @@ func (c *BacklogNotifier) getFirstIssueAttributes(ctx context.Context, projectID
 	}
 
 	var priorities []BacklogPriorityResponse
-	if err := json.Unmarshal(priorityData, &priorities); err != nil || len(priorities) == 0 {
-		// デフォルトとして Backlog の "高" (ID: 2) や "中" (ID: 3) を採用することも可能だが、API結果を優先
-		return 0, 0, fmt.Errorf("優先度リストのパースまたは取得に失敗しました")
+	if err := json.Unmarshal(priorityData, &priorities); err != nil {
+		return 0, 0, fmt.Errorf("優先度リストのパースに失敗しました: %w", err)
 	}
-	priorityID = priorities[0].ID // 最初に見つかった優先度のIDを採用
+
+	// 💡 修正ロジック: "中" を優先して探す
+	foundPriorityID := 0
+	for _, p := range priorities {
+		if p.Name == "中" { // あるいは設定可能なデフォルト値
+			foundPriorityID = p.ID
+			break
+		}
+	}
+	if foundPriorityID == 0 && len(priorities) > 0 {
+		foundPriorityID = priorities[0].ID // 見つからなければ最初のものをデフォルトとする
+	}
+	if foundPriorityID == 0 {
+		return 0, 0, fmt.Errorf("優先度が見つかりませんでした")
+	}
+	priorityID = foundPriorityID // 採用
 
 	return issueTypeID, priorityID, nil
 }
@@ -180,17 +209,9 @@ func (c *BacklogNotifier) SendIssue(ctx context.Context, summary, description st
 		return fmt.Errorf("failed to marshal issue data: %w", err)
 	}
 
-	// 💡 修正点 1: 送信ペイロードを標準出力に出力 (デバッグ用)
-	log.Printf("DEBUG: Backlog POST Payload: %s", string(jsonBody))
-
 	// 3. APIリクエストの実行
 	err = c.postRequest(ctx, "/issues", jsonBody)
 	if err != nil {
-		// 💡 修正点 2: 失敗時にエラーメッセージを標準出力に出力 (デバッグ用)
-		// log.Fatalf/log.Fatalln はプロセスを終了させるため、log.Println を使用し、
-		// エラーを返すことで呼び出し元（cmdパッケージ）に終了を委ねます。
-		log.Printf("ERROR: Backlog POST Request failed: %v", err)
-
 		// エラーを呼び出し元に返す
 		return fmt.Errorf("failed to create issue in Backlog: %w", err)
 	}

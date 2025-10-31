@@ -36,13 +36,6 @@ var backlogCmd = &cobra.Command{
 	Short: "Backlogへの課題登録またはコメント投稿を管理します",
 	Long:  `環境変数 BACKLOG_SPACE_URL と BACKLOG_API_KEY が設定されている必要があります。`,
 	Run: func(cmd *cobra.Command, args []string) {
-		if inputHeader == "" {
-			log.Fatal("🚨 致命的なエラー: 投稿ヘッダーがありません。-m フラグでメッセージを指定してください。")
-		}
-		if inputMessage == "" {
-			log.Fatal("🚨 致命的なエラー: 投稿メッセージがありません。-m フラグでメッセージを指定してください。")
-		}
-
 		backlogNotifier, err := getBacklogNotifier()
 		if err != nil {
 			// 環境変数エラーもここでハンドリングされる
@@ -51,15 +44,15 @@ var backlogCmd = &cobra.Command{
 
 		// プロジェクトIDの取得とチェック
 		projectID, err := backlogNotifier.GetProjectID(context.Background(), projectIDStr)
-		if err != nil || projectID <= 0 {
-			log.Fatalf("🚨 致命的なエラー: --project-id の値が不正です: %v", err)
+		if err != nil {
+			log.Fatalf("🚨 致命的なエラー: プロジェクトIDの取得に失敗しました: %v", err)
 		}
 
 		// 2. 投稿実行（SendIssueを使用）
 		if err := backlogNotifier.SendIssue(
 			context.Background(),
-			inputHeader,
-			inputMessage,
+			inputHeader,  // Backlogの課題サマリーとして使用
+			inputMessage, // Backlogの課題説明として使用
 			projectID,
 		); err != nil {
 			log.Fatalf("🚨 Backlogへの投稿に失敗しました: %v", err)
