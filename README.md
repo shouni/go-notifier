@@ -25,7 +25,7 @@ Go Notifier は、Web コンテンツを自動で抽出・整形し、複数の�
 プロジェクトルートで以下のコマンドを実行し、実行ファイルを生成します。
 
 ```bash
-go build -o bin/go_notifier ./cmd
+go build -o bin/notifier
 ```
 
 ### 2\. 環境変数の設定
