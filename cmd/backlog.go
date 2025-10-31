@@ -48,6 +48,11 @@ var backlogCmd = &cobra.Command{
 			log.Fatalf("🚨 致命的なエラー: プロジェクトIDの取得に失敗しました: %v", err)
 		}
 
+		// 新規課題登録ではサマリー（inputHeader）は必須
+		if inputHeader == "" {
+			log.Fatal("🚨 致命的なエラー: 課題のサマリーとなるテキストがありません。-h フラグでヘッダーを指定してください。")
+		}
+
 		// 2. 投稿実行（SendIssueを使用）
 		if err := backlogNotifier.SendIssue(
 			context.Background(),
