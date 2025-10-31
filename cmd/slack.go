@@ -35,7 +35,7 @@ var slackCmd = &cobra.Command{
 		// 🚨 修正点2: sharedClient は PersistentPreRunE で初期化済みのためそのまま利用
 		// Notifierの初期化
 		slackNotifier := notifier.NewSlackNotifier(
-			*sharedClient, // ポインタではなく値として渡すことを想定
+			*sharedClient,
 			slackWebhookURL,
 			slackUsername,
 			slackIconEmoji,
