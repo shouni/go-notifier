@@ -17,7 +17,8 @@ var (
 	issueID      string
 )
 
-// 実行前に rootCmd の PersistentPreRun で sharedClient が初期化されている必要があります。
+// getBacklogNotifier は環境変数チェックを行い、Backlog Notifierを生成します。
+// sharedClient は PersistentPreRunE で初期化済みのため、そのまま使用します。
 func getBacklogNotifier() (*notifier.BacklogNotifier, error) {
 	backlogSpaceURL := os.Getenv("BACKLOG_SPACE_URL")
 	backlogAPIKey := os.Getenv("BACKLOG_API_KEY")
@@ -25,6 +26,7 @@ func getBacklogNotifier() (*notifier.BacklogNotifier, error) {
 		return nil, fmt.Errorf("BACKLOG_SPACE_URL または BACKLOG_API_KEY 環境変数が設定されていません")
 	}
 
+	// Notifierの初期化に sharedClient を使用
 	return notifier.NewBacklogNotifier(*sharedClient, backlogSpaceURL, backlogAPIKey)
 }
 
@@ -38,7 +40,6 @@ var backlogCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		backlogNotifier, err := getBacklogNotifier()
 		if err != nil {
-			// 環境変数エラーもここでハンドリングされる
 			log.Fatalf("🚨 Backlog Notifierの初期化に失敗しました: %v", err)
 		}
 
@@ -48,16 +49,16 @@ var backlogCmd = &cobra.Command{
 			log.Fatalf("🚨 致命的なエラー: プロジェクトIDの取得に失敗しました: %v", err)
 		}
 
-		// 新規課題登録ではサマリー（inputHeader）は必須
-		if inputHeader == "" {
-			log.Fatal("🚨 致命的なエラー: 課題のサマリーとなるテキストがありません。-h フラグでヘッダーを指定してください。")
+		// 🚨 修正点1: 課題サマリーのチェックで Flags.Header を使用
+		if Flags.Header == "" {
+			log.Fatal("🚨 致命的なエラー: 課題のサマリーとなるテキストがありません。-H フラグでヘッダーを指定してください。")
 		}
 
 		// 2. 投稿実行（SendIssueを使用）
 		if err := backlogNotifier.SendIssue(
 			context.Background(),
-			inputHeader,  // Backlogの課題サマリーとして使用
-			inputMessage, // Backlogの課題説明として使用
+			Flags.Header,  // Backlogの課題サマリーとして使用
+			Flags.Message, // Backlogの課題説明として使用
 			projectID,
 		); err != nil {
 			log.Fatalf("🚨 Backlogへの投稿に失敗しました: %v", err)
@@ -74,7 +75,8 @@ var commentCmd = &cobra.Command{
 	Use:   "comment",
 	Short: "既存の課題にコメントを追記します",
 	Run: func(cmd *cobra.Command, args []string) {
-		if inputMessage == "" {
+		// 🚨 修正点2: 投稿メッセージのチェックで Flags.Message を使用
+		if Flags.Message == "" {
 			log.Fatal("🚨 致命的なエラー: 投稿メッセージがありません。-m フラグでメッセージを指定してください。")
 		}
 
@@ -88,15 +90,15 @@ var commentCmd = &cobra.Command{
 
 		backlogNotifier, err := getBacklogNotifier()
 		if err != nil {
-			// 環境変数エラーもここでハンドリングされる
 			log.Fatalf("🚨 Backlog Notifierの初期化に失敗しました: %v", err)
 		}
 
 		// 投稿実行（SendCommentを使用 - 課題キーとメッセージを渡す）
+		// 🚨 修正点3: 投稿メッセージに Flags.Message を使用
 		if err := backlogNotifier.PostComment(
 			context.Background(),
 			issueID,
-			inputMessage,
+			Flags.Message,
 		); err != nil {
 			log.Fatalf("🚨 Backlogへのコメント投稿に失敗しました: %v", err)
 		}
@@ -106,8 +108,15 @@ var commentCmd = &cobra.Command{
 }
 
 func init() {
-	projectIDStr = os.Getenv("BACKLOG_PROJECT_ID")
-	backlogCmd.Flags().StringVarP(&projectIDStr, "project-id", "p", projectIDStr, "【必須】課題を登録する Backlog のプロジェクトID (ENV: BACKLOG_PROJECT_ID)")
+	// init() 内での projectIDStr の環境変数からの初期設定はフラグ定義に統合する
+
+	// backlogCmd のフラグ定義
+	projectIDEnv := os.Getenv("BACKLOG_PROJECT_ID")
+	backlogCmd.Flags().StringVarP(&projectIDStr, "project-id", "p", projectIDEnv, "【必須】課題を登録する Backlog のプロジェクトID (ENV: BACKLOG_PROJECT_ID)")
+
+	// commentCmd のフラグ定義
 	commentCmd.Flags().StringVarP(&issueID, "issue-id", "i", "", "【必須】コメントを投稿する Backlog 課題 ID (例: PROJECT-123)")
+
+	// コマンド階層の構築は維持
 	backlogCmd.AddCommand(commentCmd)
 }
