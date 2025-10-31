@@ -76,8 +76,6 @@ var backlogCmd = &cobra.Command{
 			summary,
 			description,
 			projectID,
-			issueTypeID,
-			priorityID,
 		); err != nil {
 			log.Fatalf("🚨 Backlogへの投稿に失敗しました: %v", err)
 		}
@@ -127,8 +125,8 @@ var commentCmd = &cobra.Command{
 func init() {
 	projectIDStr = os.Getenv("BACKLOG_PROJECT_ID")
 	backlogCmd.Flags().StringVarP(&projectIDStr, "project-id", "p", projectIDStr, "【必須】課題を登録する Backlog のプロジェクトID (ENV: BACKLOG_PROJECT_ID)")
-	backlogCmd.Flags().IntVarP(&issueTypeID, "issue-type-id", "t", 101, "課題の種別ID（例: 101 for タスク）")
-	backlogCmd.Flags().IntVarP(&priorityID, "priority-id", "r", 3, "課題の優先度ID（例: 3 for 中）")
+	//backlogCmd.Flags().IntVarP(&issueTypeID, "issue-type-id", "t", 101, "課題の種別ID（例: 101 for タスク）")
+	//backlogCmd.Flags().IntVarP(&priorityID, "priority-id", "r", 3, "課題の優先度ID（例: 3 for 中）")
 	commentCmd.Flags().StringVarP(&issueID, "issue-id", "i", "", "【必須】コメントを投稿する Backlog 課題 ID (例: PROJECT-123)")
 	backlogCmd.AddCommand(commentCmd)
 }
