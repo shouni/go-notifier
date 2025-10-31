@@ -44,7 +44,7 @@ var slackCmd = &cobra.Command{
 
 		// 投稿実行
 		// 🚨 修正点3: ルートコマンドの共通フラグ（Header, Message）をアクセス
-		if err := slackNotifier.SendTextWithHeader(context.Background(), Flags.Header, Flags.Message); err != nil {
+		if err := slackNotifier.SendTextWithHeader(context.Background(), Flags.Title, Flags.Message); err != nil {
 			log.Fatalf("🚨 Slackへの投稿に失敗しました: %v", err)
 		}
 
@@ -53,7 +53,6 @@ var slackCmd = &cobra.Command{
 }
 
 func init() {
-	// init() は変更なし
 	slackCmd.Flags().StringVarP(&slackUsername, "username", "u", os.Getenv("SLACK_USERNAME"), "Slack投稿時のユーザー名 (ENV: SLACK_USERNAME)")
 	slackCmd.Flags().StringVarP(&slackIconEmoji, "icon-emoji", "e", os.Getenv("SLACK_ICON_EMOJI"), "Slack投稿時の絵文字アイコン (ENV: SLACK_ICON_EMOJI)")
 	slackCmd.Flags().StringVarP(&slackChannel, "channel", "c", os.Getenv("SLACK_CHANNEL"), "Slack投稿先のチャンネル（例: #general）(ENV: SLACK_CHANNEL)")

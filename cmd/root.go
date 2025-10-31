@@ -12,14 +12,14 @@ import (
 
 const (
 	appName           = "notifier"
-	defaultTimeoutSec = 60 // 秒
+	defaultTimeoutSec = 10 // 秒
 )
 
 // GlobalFlags はこのアプリケーション固有の永続フラグを保持
 // clibase.Flags は clibase 共通フラグ（Verbose, ConfigFile）を保持
 type AppFlags struct {
-	Header     string // -H ヘッダー
-	Message    string // -m メッセージ
+	Title      string // -H 投稿タイトル
+	Message    string // -m 投稿メッセージ
 	TimeoutSec int    // --timeout タイムアウト
 }
 
@@ -32,8 +32,8 @@ var sharedClient *request.Client
 
 // addAppPersistentFlags は、アプリケーション固有の永続フラグをルートコマンドに追加します。
 func addAppPersistentFlags(rootCmd *cobra.Command) {
-	rootCmd.PersistentFlags().StringVarP(&Flags.Header, "header", "H", "", "ヘッダー（テキスト）")
-	rootCmd.PersistentFlags().StringVarP(&Flags.Message, "message", "m", "", "投稿するメッセージ（テキスト）")
+	rootCmd.PersistentFlags().StringVarP(&Flags.Title, "title", "t", "", "投稿タイトル")
+	rootCmd.PersistentFlags().StringVarP(&Flags.Message, "message", "m", "", "投稿メッセージ")
 	rootCmd.PersistentFlags().IntVar(&Flags.TimeoutSec, "timeout", defaultTimeoutSec, "HTTPリクエストのタイムアウト時間（秒）")
 }
 
@@ -72,10 +72,4 @@ func Execute() {
 		slackCmd,   // 既存のサブコマンド
 		backlogCmd, // 既存のサブコマンド
 	)
-}
-
-// init() はサブコマンドの登録のみに残します (ここでは省略)
-
-func init() {
-	//サブコマンドは clibase.Execute に直接渡すため、rootCmd.AddCommand は不要
 }

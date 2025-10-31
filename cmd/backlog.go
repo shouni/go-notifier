@@ -50,14 +50,14 @@ var backlogCmd = &cobra.Command{
 		}
 
 		// 🚨 修正点1: 課題サマリーのチェックで Flags.Header を使用
-		if Flags.Header == "" {
+		if Flags.Title == "" {
 			log.Fatal("🚨 致命的なエラー: 課題のサマリーとなるテキストがありません。-H フラグでヘッダーを指定してください。")
 		}
 
 		// 2. 投稿実行（SendIssueを使用）
 		if err := backlogNotifier.SendIssue(
 			context.Background(),
-			Flags.Header,  // Backlogの課題サマリーとして使用
+			Flags.Title,   // Backlogの課題サマリーとして使用
 			Flags.Message, // Backlogの課題説明として使用
 			projectID,
 		); err != nil {
@@ -116,7 +116,4 @@ func init() {
 
 	// commentCmd のフラグ定義
 	commentCmd.Flags().StringVarP(&issueID, "issue-id", "i", "", "【必須】コメントを投稿する Backlog 課題 ID (例: PROJECT-123)")
-
-	// コマンド階層の構築は維持
-	backlogCmd.AddCommand(commentCmd)
 }
