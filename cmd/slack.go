@@ -41,7 +41,7 @@ var slackCmd = &cobra.Command{
 		)
 
 		// 投稿実行
-		if err := slackNotifier.SendTextWithHeader(context.Background(), "📝 テスト結果", inputMessage); err != nil {
+		if err := slackNotifier.SendTextWithHeader(context.Background(), inputHeader, inputMessage); err != nil {
 			log.Fatalf("🚨 Slackへの投稿に失敗しました: %v", err)
 		}
 
