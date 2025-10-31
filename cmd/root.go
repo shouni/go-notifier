@@ -5,7 +5,7 @@ import (
 	"log"
 	"time"
 
-	"github.com/shouni/go-cli-base/clibase"
+	"github.com/shouni/go-cli-base"
 	request "github.com/shouni/go-web-exact/v2/pkg/client"
 	"github.com/spf13/cobra"
 )
