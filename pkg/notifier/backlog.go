@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
 	"strings"
 
@@ -108,8 +109,8 @@ func (c *BacklogNotifier) GetProjectID(ctx context.Context, projectKey string) (
 // SendIssue は、Backlogに新しい課題を登録します。
 func (c *BacklogNotifier) SendIssue(ctx context.Context, summary, description string, projectID, issueTypeID, priorityID int) error {
 	// 1. 絵文字のサニタイズ
-	sanitizedSummary := util.CleanStringFromEmojis(summary)         // 修正: 大文字始まりの関数を呼び出し
-	sanitizedDescription := util.CleanStringFromEmojis(description) // 修正: 大文字始まりの関数を呼び出し
+	sanitizedSummary := util.CleanStringFromEmojis(summary)
+	sanitizedDescription := util.CleanStringFromEmojis(description)
 
 	// 2. ペイロードの構築
 	issueData := BacklogIssuePayload{
@@ -125,9 +126,18 @@ func (c *BacklogNotifier) SendIssue(ctx context.Context, summary, description st
 		return fmt.Errorf("failed to marshal issue data: %w", err)
 	}
 
+	// 💡 修正点 1: 送信ペイロードを標準出力に出力 (デバッグ用)
+	log.Printf("DEBUG: Backlog POST Payload: %s", string(jsonBody))
+
 	// 3. APIリクエストの実行
 	err = c.postRequest(ctx, "/issues", jsonBody)
 	if err != nil {
+		// 💡 修正点 2: 失敗時にエラーメッセージを標準出力に出力 (デバッグ用)
+		// log.Fatalf/log.Fatalln はプロセスを終了させるため、log.Println を使用し、
+		// エラーを返すことで呼び出し元（cmdパッケージ）に終了を委ねます。
+		log.Printf("ERROR: Backlog POST Request failed: %v", err)
+
+		// エラーを呼び出し元に返す
 		return fmt.Errorf("failed to create issue in Backlog: %w", err)
 	}
 

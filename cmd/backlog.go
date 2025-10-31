@@ -54,7 +54,7 @@ var backlogCmd = &cobra.Command{
 			log.Fatalf("🚨 致命的なエラー: --project-id の値が不正です: %v", err)
 		}
 
-		// 1. サマリーと説明への分割 (課題登録用)
+		// 1. サマリーと説明への分割
 		lines := strings.SplitN(inputMessage, "\n", 2)
 		summary := strings.TrimSpace(lines[0])
 		description := ""
@@ -65,6 +65,10 @@ var backlogCmd = &cobra.Command{
 		if summary == "" {
 			log.Fatal("🚨 致命的なエラー: 課題のサマリーとなるテキストがありません。")
 		}
+
+		// TODO::APIから取得できればいいがデフォルト指定
+		issueTypeID = 1
+		priorityID = 1
 
 		// 2. 投稿実行（SendIssueを使用）
 		if err := backlogNotifier.SendIssue(
