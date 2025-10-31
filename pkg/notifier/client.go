@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/shouni/go-web-exact/pkg/web"
+	"github.com/shouni/go-web-exact/v2/pkg/extract"
 )
 
 // Notifier は、外部システムへの通知処理のインターフェースを定義します。
@@ -23,12 +23,12 @@ type Notifier interface {
 
 // ContentNotifier は、Web抽出と複数のNotifierへの通知を管理します。
 type ContentNotifier struct {
-	extractor *web.Extractor // Webコンテンツ抽出機
-	Notifiers []Notifier     // 登録されている全ての通知先
+	extractor *extract.Extractor // Webコンテンツ抽出機
+	Notifiers []Notifier         // 登録されている全ての通知先
 }
 
 // NewContentNotifier は ContentNotifier を初期化します。
-func NewContentNotifier(extractor *web.Extractor, notifiers ...Notifier) *ContentNotifier {
+func NewContentNotifier(extractor *extract.Extractor, notifiers ...Notifier) *ContentNotifier {
 	return &ContentNotifier{
 		extractor: extractor,
 		Notifiers: notifiers,

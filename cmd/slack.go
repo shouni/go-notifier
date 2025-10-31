@@ -6,7 +6,6 @@ import (
 	"os"
 
 	"github.com/shouni/go-notifier/pkg/notifier"
-
 	"github.com/spf13/cobra"
 )
 
@@ -34,7 +33,7 @@ var slackCmd = &cobra.Command{
 
 		// Notifierの初期化
 		slackNotifier := notifier.NewSlackNotifier(
-			sharedClient,
+			*sharedClient,
 			slackWebhookURL,
 			slackUsername,
 			slackIconEmoji,
