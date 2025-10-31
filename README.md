@@ -9,12 +9,12 @@ Go Notifier は、Web コンテンツを自動で抽出・整形し、複数の�
 
 **主要な機能強化点:**
 
-* **堅牢性**: 指数バックオフによるリトライ処理を備えた HTTP クライアントを使用。
-* **セキュリティ**: Backlog APIキーを URL クエリから **HTTPヘッダー** に移動。
-* **表現力**: Slack への通知は **Block Kit** 形式に対応。
-* **柔軟性**: タイムアウト設定、Backlog課題種別IDなどを **CLIフラグ/ショートカット** から指定可能。
-* **新機能**: **Backlogの既存課題へのコメント投稿** (`backlog comment`) に対応。
-* **新機能**: Notifierインターフェースに**ヘッダー付きテキスト送信**機能を追加し、表現力を向上。
+  * **堅牢性**: 指数バックオフによるリトライ処理を備えた HTTP クライアントを使用。
+  * **セキュリティ**: Backlog APIキーを URL クエリから **HTTPヘッダー** に移動。
+  * **表現力**: Slack への通知は **Block Kit** 形式に対応。
+  * **柔軟性**: タイムアウト設定、Backlog課題種別IDなどを **CLIフラグ/ショートカット** から指定可能。
+  * **新機能**: **Backlogの既存課題へのコメント投稿** (`backlog comment`) に対応。
+  * **新機能**: Notifierインターフェースに**ヘッダー付きテキスト送信**機能を追加し、表現力を向上。
 
 -----
 
@@ -40,7 +40,7 @@ go build -o bin/go_notifier ./cmd
 
 ### 3\. 実行（CLIコマンド）
 
-ビルドした実行ファイル (`bin/go_notifier`) を使用し、サブコマンドとフラグで操作します。グローバルフラグとして、投稿メッセージ（`-m`, `--message`）とタイムアウト時間（`--timeout`）が利用可能です。
+ビルドした実行ファイル (`bin/go_notifier`) を使用し、サブコマンドとフラグで操作します。グローバルフラグとして、投稿メッセージ（`-m`, `--message`）と投稿ヘッダー（`-h`, `--header`）、タイムアウト時間（`--timeout`）が利用可能です。
 
 #### 🔹 Slack への投稿
 
@@ -48,23 +48,25 @@ SlackNotifierは、内部でMarkdownをBlock Kitに変換します。
 
 ```bash
 # 環境変数 SLACK_WEBHOOK_URL が必要
-# ショートカット: -u (username), -e (icon-emoji), -c (channel), -m (message)
-./bin/go_notifier slack -m "これはSlackに投稿するメッセージです。" \
-  -u "Notifier Bot" \
-  -c "#general"
+# ショートカット: -h (header), -m (message), -u (username), -e (icon-emoji), -c (channel)
+./bin/go_notifier slack -h "Slack通知ヘッダー" \
+  -m "これはSlackに投稿するメッセージです。" \
+  -u "Notifier Bot" \
+  -c "#general"
 ```
 
 #### 🔹 Backlog への課題登録
 
-課題登録に必要な ID は CLI フラグで指定します。複数行メッセージの場合、最初の行がサマリーになります。
+**`-h` (ヘッダー)** が課題のサマリーに、**`-m` (メッセージ)** が課題の詳細になります。
+
+**IDが省略された場合、プロジェクト設定から最初の課題種別ID/優先度IDが自動取得されます。**
 
 ```bash
 # 環境変数 BACKLOG_SPACE_URL と BACKLOG_API_KEY が必要
-# ショートカット: -p (project-id), -t (issue-type-id), -r (priority-id), -m (message)
-./bin/go_notifier backlog -m "新規課題のサマリー\nこれは課題の説明文です。" \
-  -p 10 \
-  -t 101 \
-  -r 3
+# ショートカット: -p (project-id), -t (issue-type-id), -r (priority-id), -h (header), -m (message)
+./bin/go_notifier backlog -h "新規課題のサマリー" \
+  -m "これは課題の説明文です。" \
+  -p 10
 ```
 
 #### 🔹 Backlog 既存課題へのコメント投稿
@@ -75,15 +77,14 @@ SlackNotifierは、内部でMarkdownをBlock Kitに変換します。
 # 課題キーを指定してコメントを投稿する例
 # ショートカット: -i (issue-id), -m (message)
 ./bin/go_notifier backlog comment \
-  -i "PROJECT-123" \
-  -m "この課題に関する新しい情報を追記します。"
+  -i "PROJECT-123" \
+  -m "この課題に関する新しい情報を追記します。"
 ```
 
 | フラグ名 | ショートカット | 役割 | デフォルト値 |
 | :--- | :--- | :--- | :--- |
-| `--project-id` | **`-p`** | **必須** (課題登録時): 課題を登録する **プロジェクト ID**。 | (なし) |
-| `--issue-type-id` | **`-t`** | **必須** (課題登録時): 新規課題の **課題種別 ID**。 | `101` (タスク) |
-| `--priority-id` | **`-r`** | **必須** (課題登録時): 新規課題の **優先度 ID**。 | `3` (中) |
+| **`--header`** | **`-h`** | **グローバル**: 投稿ヘッダー/課題サマリーとして使用。 | (なし) |
+| **`--message`** | **`-m`** | **グローバル**: 投稿メッセージ/課題詳細として使用。 | (なし) |
 | **`--issue-id`** | **`-i`** | **必須** (コメント時): コメント対象の **課題キー** または **ID**。 | (なし) |
 
 -----
@@ -95,38 +96,39 @@ Cobra CLI と DI の原則に基づき、責務が明確に分離されていま
 ```
 go-notifier/
 ├── cmd/
-│   ├── root.go       # グローバルなフラグ定義とエントリーポイント (Cobra)
-│   ├── slack.go      # Slack サブコマンドのロジック
-│   └── backlog.go    # Backlog サブコマンドのロジック (課題登録/コメント投稿ロジック含む)
+│   ├── root.go       # グローバルなフラグ定義とエントリーポイント (Cobra)
+│   ├── slack.go      # Slack サブコマンドのロジック
+│   └── backlog.go    # Backlog サブコマンドのロジック (課題登録/コメント投稿ロジック含む)
 ├── pkg/
-│   └── notifier/     # コア通知ロジック (Notifier インターフェース実装)
-│       ├── backlog.go    # Backlog 投稿/コメントクライアント (IssueNotifierの責務)
-│       ├── client.go     # ContentNotifier (Web抽出と通知の統合)
-│       ├── client_mock.go # MockNotifier (テスト用モック)
-│       └── slack.go      # Slack 通知クライアント (Block Kit, TextNotifierの責務)
-└── main.go           # アプリケーションのエントリーポイント (Cobraコマンドの実行)
+│   └── notifier/     # コア通知ロジック (Notifier インターフェース実装)
+│       ├── backlog.go    # Backlog 投稿/コメントクライアント
+│       ├── client.go     # ContentNotifier (Web抽出と通知の統合)
+│       ├── client_mock.go # MockNotifier (テスト用モック)
+│       └── slack.go      # Slack 通知クライアント (Block Kit)
+│   └── util/         # 汎用ヘルパー関数 (絵文字サニタイズなど)
+└── main.go           # アプリケーションのエントリーポイント (Cobraコマンドの実行)
 ```
 
 ### 外部依存パッケージ
 
 本プロジェクトは、以下の主要な外部パッケージに依存しています。
 
-* **`github.com/shouni/go-web-exact`**: 堅牢な HTTP クライアント（リトライ/タイムアウト）および Web コンテンツ抽出機能を提供。
-* **`github.com/slack-go/slack`**: Slack Block Kit 形式のメッセージ構築をサポート。
-* **`github.com/forPelevin/gomoji`**: Backlog投稿時の絵文字サニタイズに使用。
-* **`github.com/spf13/cobra`**: 堅牢な CLI インターフェースを提供。
+  * **`github.com/shouni/go-web-exact`**: 堅牢な HTTP クライアント（リトライ/タイムアウト）および Web コンテンツ抽出機能を提供。
+  * **`github.com/slack-go/slack`**: Slack Block Kit 形式のメッセージ構築をサポート。
+  * **`github.com/forPelevin/gomoji`**: Backlog投稿時の絵文字サニタイズに使用。
+  * **`github.com/spf13/cobra`**: 堅牢な CLI インターフェースを提供。
 
 -----
 
 ## 📚 処理フロー
 
-1.  ユーザーが `go_notifier [subcommand] --message ...` を実行。
-2.  `cmd/root.go` でグローバルな `httpclient.Client` がタイムアウト設定に基づいて初期化される。
-3.  サブコマンド（例: `backlog`）のロジックが実行され、共通の `getBacklogNotifier()` ヘルパーを介して適切な `Notifier` が初期化される。
-4.  メッセージが `Notifier` の **`SendText`、`SendTextWithHeader`、`SendIssue`、または`PostComment`** メソッドに渡される。
-5.  各 `Notifier` は、メッセージを整形（SlackはBlock Kit、Backlogは絵文字除去）し、APIリクエストを構築。
+1.  ユーザーが `go_notifier [subcommand] -h "ヘッダー" -m "メッセージ"` を実行。
+2.  `cmd/root.go` でグローバルな `httpclient.Client` が初期化される。
+3.  サブコマンド（例: `backlog`）が実行され、適切な `Notifier` が初期化される。
+4.  メッセージとヘッダーが `Notifier` の **`SendTextWithHeader`** や **`SendIssue`** メソッドに渡される。
+5.  Backlog の場合、`SendIssue` は **プロジェクトIDと課題属性を自動で補完** する。
 6.  APIリクエストは、**指数バックオフ** リトライロジックを持つ共有 **`httpclient`** を通じて実行される。
-7.  Backlog の場合、APIキーはセキュリティのために HTTP **ヘッダー** で送信される。
+7.  APIキーはセキュリティのために HTTP **ヘッダー** で送信される。
 
 ### 📜 ライセンス (License)
 
