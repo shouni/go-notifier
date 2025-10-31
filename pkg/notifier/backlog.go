@@ -147,7 +147,7 @@ func (c *BacklogNotifier) PostComment(ctx context.Context, issueID string, conte
 
 // postRequest は、指定されたエンドポイントへリクエストを送信する内部ヘルパーメソッドです。
 func (c *BacklogNotifier) postRequest(ctx context.Context, endpoint string, jsonBody []byte) error {
-	fullURL := fmt.Sprintf("%s%s", c.baseURL, endpoint)
+	fullURL := fmt.Sprintf("%s%s?apiKey=%s", c.baseURL, endpoint, c.apiKey)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, fullURL, bytes.NewBuffer(jsonBody))
 	if err != nil {
