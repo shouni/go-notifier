@@ -10,13 +10,13 @@ import (
 	"strings"
 
 	"github.com/shouni/go-notifier/pkg/util"
-	"github.com/shouni/go-web-exact/v2/pkg/client"
+	request "github.com/shouni/go-web-exact/v2/pkg/client"
 )
 
 // BacklogNotifier は Backlog 課題登録用の API クライアントです。
 // Notifier インターフェースを満たしますが、SendText および SendTextWithHeader は Backlog の利用方針（課題登録推奨）に基づきエラーを返します。
 type BacklogNotifier struct {
-	client  httpclient.HTTPClient // 汎用クライアント (リトライ機能込み)
+	client  request.Client // 汎用クライアント (リトライ機能込み)
 	baseURL string
 	apiKey  string
 }
@@ -50,7 +50,7 @@ func (e *BacklogError) Error() string {
 }
 
 // NewBacklogNotifier はBacklogNotifierを初期化します。
-func NewBacklogNotifier(client httpclient.HTTPClient, spaceURL string, apiKey string) (*BacklogNotifier, error) {
+func NewBacklogNotifier(client request.Client, spaceURL string, apiKey string) (*BacklogNotifier, error) {
 	if spaceURL == "" || apiKey == "" {
 		return nil, errors.New("BACKLOG_SPACE_URL および BACKLOG_API_KEY の設定が必要です")
 	}
@@ -170,7 +170,7 @@ func (c *BacklogNotifier) postRequest(ctx context.Context, endpoint string, json
 	}
 
 	// エラーレスポンスの処理
-	body, _ := httpclient.HandleLimitedResponse(resp, 4096) // 4KBまで読み込み
+	body, _ := request.HandleLimitedResponse(resp, 4096) // 4KBまで読み込み
 
 	var errorResp BacklogErrorResponse
 	if json.Unmarshal(body, &errorResp) == nil && len(errorResp.Errors) > 0 {

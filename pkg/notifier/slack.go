@@ -13,7 +13,7 @@ import (
 
 	"github.com/slack-go/slack"
 
-	"github.com/shouni/go-web-exact/v2/pkg/client"
+	request "github.com/shouni/go-web-exact/v2/pkg/client"
 )
 
 // SlackNotifier は Slack Webhook API と連携するためのクライアントです。
@@ -22,14 +22,14 @@ type SlackNotifier struct {
 	// WebhookURL: 必須の通知先URL
 	WebhookURL string
 	// httpClient: 汎用クライアント (リトライロジックを含む)
-	client    httpclient.HTTPClient
+	client    request.Client
 	Username  string
 	IconEmoji string
 	Channel   string
 }
 
 // NewSlackNotifier は SlackNotifier の新しいインスタンスを作成します。
-func NewSlackNotifier(client httpclient.HTTPClient, webhookURL, username, iconEmoji, channel string) *SlackNotifier {
+func NewSlackNotifier(client request.Client, webhookURL, username, iconEmoji, channel string) *SlackNotifier {
 	return &SlackNotifier{
 		WebhookURL: webhookURL,
 		client:     client,
@@ -144,7 +144,7 @@ func (s *SlackNotifier) SendTextWithHeader(ctx context.Context, headerText strin
 	// レスポンスステータスのチェック
 	if resp.StatusCode != http.StatusOK {
 		// ボディを読み込み、エラーメッセージとして含める（最大1024バイトまで）
-		body, _ := httpclient.HandleLimitedResponse(resp, 1024)
+		body, _ := request.HandleLimitedResponse(resp, 1024)
 
 		return fmt.Errorf("Slack API returned non-OK status code: %d %s, Body: %s",
 			resp.StatusCode, resp.Status, strings.TrimSpace(string(body)))
