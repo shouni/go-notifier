@@ -48,4 +48,7 @@ func Execute() {
 func init() {
 	rootCmd.PersistentFlags().StringVarP(&inputMessage, "message", "m", "", "投稿するメッセージ（テキスト）")
 	rootCmd.PersistentFlags().IntVar(&timeoutSec, "timeout", defaultTimeoutSec, "HTTPリクエストのタイムアウト時間（秒）")
+
+	rootCmd.AddCommand(slackCmd)
+	rootCmd.AddCommand(backlogCmd)
 }
