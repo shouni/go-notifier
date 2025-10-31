@@ -46,7 +46,7 @@ func Execute() {
 }
 
 func init() {
-	rootCmd.PersistentFlags().StringVarP(&inputHeader, "header", "h", "", "ヘッダー（テキスト）")
+	rootCmd.PersistentFlags().StringVarP(&inputHeader, "header", "H", "", "ヘッダー（テキスト）")
 	rootCmd.PersistentFlags().StringVarP(&inputMessage, "message", "m", "", "投稿するメッセージ（テキスト）")
 	rootCmd.PersistentFlags().IntVar(&timeoutSec, "timeout", defaultTimeoutSec, "HTTPリクエストのタイムアウト時間（秒）")
 
