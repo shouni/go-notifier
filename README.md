@@ -40,7 +40,7 @@ go build -o bin/go_notifier ./cmd
 
 ### 3\. 実行（CLIコマンド）
 
-ビルドした実行ファイル (`bin/go_notifier`) を使用し、サブコマンドとフラグで操作します。グローバルフラグとして、投稿メッセージ（`-m`, `--message`）と投稿ヘッダー（`-h`, `--header`）、タイムアウト時間（`--timeout`）が利用可能です。
+ビルドした実行ファイル (`bin/go_notifier`) を使用し、サブコマンドとフラグで操作します。グローバルフラグとして、投稿メッセージ（`-m`, `--message`）と投稿ヘッダー（`-H`, `--header`）、タイムアウト時間（`--timeout`）が利用可能です。
 
 #### 🔹 Slack への投稿
 
@@ -49,7 +49,7 @@ SlackNotifierは、内部でMarkdownをBlock Kitに変換します。
 ```bash
 # 環境変数 SLACK_WEBHOOK_URL が必要
 # ショートカット: -H (header), -m (message), -u (username), -e (icon-emoji), -c (channel)
-./bin/go_notifier slack -h "Slack通知ヘッダー" \
+./bin/go_notifier slack -H "Slack通知ヘッダー" \
   -m "これはSlackに投稿するメッセージです。" \
   -u "Notifier Bot" \
   -c "#general"
