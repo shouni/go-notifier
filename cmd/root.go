@@ -11,6 +11,7 @@ import (
 
 // 設定フラグのグローバル変数 (すべてのサブコマンドで参照可能)
 var (
+	inputHeader  string
 	inputMessage string // -m フラグで受け取る投稿メッセージ
 	timeoutSec   int    // HTTPリクエストのタイムアウト時間（秒）
 )
@@ -46,6 +47,7 @@ func Execute() {
 }
 
 func init() {
+	rootCmd.PersistentFlags().StringVarP(&inputHeader, "header", "h", "", "ヘッダー（テキスト）")
 	rootCmd.PersistentFlags().StringVarP(&inputMessage, "message", "m", "", "投稿するメッセージ（テキスト）")
 	rootCmd.PersistentFlags().IntVar(&timeoutSec, "timeout", defaultTimeoutSec, "HTTPリクエストのタイムアウト時間（秒）")
 
