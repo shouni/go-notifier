@@ -13,7 +13,7 @@ import (
 
 	"github.com/slack-go/slack"
 
-	"github.com/shouni/go-web-exact/pkg/httpclient"
+	"github.com/shouni/go-web-exact/v2/pkg/client"
 )
 
 // SlackNotifier は Slack Webhook API と連携するためのクライアントです。

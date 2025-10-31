@@ -10,7 +10,7 @@ import (
 	"strings"
 
 	"github.com/shouni/go-notifier/pkg/util"
-	"github.com/shouni/go-web-exact/pkg/httpclient"
+	"github.com/shouni/go-web-exact/v2/pkg/client"
 )
 
 // BacklogNotifier は Backlog 課題登録用の API クライアントです。

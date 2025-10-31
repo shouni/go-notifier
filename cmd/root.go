@@ -5,7 +5,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/shouni/go-web-exact/pkg/httpclient"
+	"github.com/shouni/go-web-exact/v2/pkg/client"
 	"github.com/spf13/cobra"
 )
 
@@ -20,7 +20,7 @@ const (
 )
 
 // sharedClient はすべてのサブコマンドで共有される HTTP クライアント
-var sharedClient *httpclient.Client
+var sharedClient *client.httpClient
 
 // rootCmd はアプリケーションのベースとなるコマンド
 var rootCmd = &cobra.Command{
@@ -29,7 +29,7 @@ var rootCmd = &cobra.Command{
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		// すべてのサブコマンド実行前に共有クライアントを初期化
 		timeout := time.Duration(timeoutSec) * time.Second
-		sharedClient = httpclient.New(timeout)
+		sharedClient = client.New(timeout)
 		log.Printf("HTTPクライアントを初期化しました (Timeout: %s)。", timeout)
 	},
 	Run: func(cmd *cobra.Command, args []string) {
