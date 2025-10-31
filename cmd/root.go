@@ -5,7 +5,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/shouni/go-web-exact/v2/pkg/client"
+	request "github.com/shouni/go-web-exact/v2/pkg/client"
 	"github.com/spf13/cobra"
 )
 
@@ -21,7 +21,7 @@ const (
 
 // sharedClient はすべてのサブコマンドで共有される HTTP クライアント
 // 記憶したパッケージの Client 型に変更
-var sharedClient *client.Client
+var sharedClient *request.Client
 
 // rootCmd はアプリケーションのベースとなるコマンド
 var rootCmd = &cobra.Command{
@@ -29,7 +29,7 @@ var rootCmd = &cobra.Command{
 	Short: "SlackとBacklogへの通知を管理するCLIツール",
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		timeout := time.Duration(timeoutSec) * time.Second
-		sharedClient = client.New(timeout)
+		sharedClient = request.New(timeout)
 		log.Printf("HTTPクライアントを初期化しました (Timeout: %s)。", timeout)
 	},
 	Run: func(cmd *cobra.Command, args []string) {

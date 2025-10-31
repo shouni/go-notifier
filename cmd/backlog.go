@@ -27,8 +27,8 @@ func getBacklogNotifier() (*notifier.BacklogNotifier, error) {
 	if backlogSpaceURL == "" || backlogAPIKey == "" {
 		return nil, fmt.Errorf("BACKLOG_SPACE_URL または BACKLOG_API_KEY 環境変数が設定されていません")
 	}
-	// sharedClient は rootCmd の PersistentPreRun で初期化されます
-	return notifier.NewBacklogNotifier(sharedClient, backlogSpaceURL, backlogAPIKey)
+
+	return notifier.NewBacklogNotifier(*sharedClient, backlogSpaceURL, backlogAPIKey)
 }
 
 // --- サブコマンド: backlog (課題登録) ---
