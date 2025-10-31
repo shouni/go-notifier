@@ -48,7 +48,7 @@ SlackNotifierは、内部でMarkdownをBlock Kitに変換します。
 
 ```bash
 # 環境変数 SLACK_WEBHOOK_URL が必要
-# ショートカット: -h (header), -m (message), -u (username), -e (icon-emoji), -c (channel)
+# ショートカット: -H (header), -m (message), -u (username), -e (icon-emoji), -c (channel)
 ./bin/go_notifier slack -h "Slack通知ヘッダー" \
   -m "これはSlackに投稿するメッセージです。" \
   -u "Notifier Bot" \
@@ -57,16 +57,16 @@ SlackNotifierは、内部でMarkdownをBlock Kitに変換します。
 
 #### 🔹 Backlog への課題登録
 
-**`-h` (ヘッダー)** が課題のサマリーに、**`-m` (メッセージ)** が課題の詳細になります。
+**`-H` (ヘッダー)** が課題のサマリーに、**`-m` (メッセージ)** が課題の詳細になります。
 
 **IDが省略された場合、プロジェクト設定から最初の課題種別ID/優先度IDが自動取得されます。**
 
 ```bash
 # 環境変数 BACKLOG_SPACE_URL と BACKLOG_API_KEY が必要
-# ショートカット: -p (project-id), -t (issue-type-id), -r (priority-id), -h (header), -m (message)
-./bin/go_notifier backlog -h "新規課題のサマリー" \
+# ショートカット: -p (project), -H (header), -m (message)
+./bin/go_notifier backlog -H "新規課題のサマリー" \
   -m "これは課題の説明文です。" \
-  -p 10
+  -p "TEST"
 ```
 
 #### 🔹 Backlog 既存課題へのコメント投稿
