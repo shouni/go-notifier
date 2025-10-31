@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/shouni/go-notifier/pkg/util"
+	"github.com/shouni/go-utils/text"
 	request "github.com/shouni/go-web-exact/v2/pkg/client"
 )
 
@@ -21,7 +21,7 @@ type BacklogNotifier struct {
 	apiKey  string
 }
 
-// プロジェクトキーまたはIDで取得した際のレスポンスを扱います。
+// BacklogProjectResponse はプロジェクトキーまたはIDで取得した際のレスポンスを扱います。
 type BacklogProjectResponse struct {
 	ID   int    `json:"id"`
 	Key  string `json:"projectKey"`
@@ -185,8 +185,8 @@ func (c *BacklogNotifier) getFirstIssueAttributes(ctx context.Context, projectID
 func (c *BacklogNotifier) SendIssue(ctx context.Context, summary, description string, projectID int) error {
 
 	// 1. 絵文字のサニタイズ
-	sanitizedSummary := util.CleanStringFromEmojis(summary)
-	sanitizedDescription := util.CleanStringFromEmojis(description)
+	sanitizedSummary := text.CleanStringFromEmojis(summary)
+	sanitizedDescription := text.CleanStringFromEmojis(description)
 
 	// 有効な ID を取得
 	validIssueTypeID, validPriorityID, err := c.getFirstIssueAttributes(ctx, projectID)
@@ -240,7 +240,7 @@ func (c *BacklogNotifier) PostComment(ctx context.Context, issueID string, conte
 	}
 
 	// 1. 絵文字のサニタイズ (Backlogの制限対策)
-	sanitizedContent := util.CleanStringFromEmojis(content) // 修正: 大文字始まりの関数を呼び出し
+	sanitizedContent := text.CleanStringFromEmojis(content)
 
 	// 2. ペイロードの構築
 	commentData := map[string]string{
