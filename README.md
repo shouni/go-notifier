@@ -5,16 +5,15 @@
 [![GitHub tag (latest by date)](https://img.shields.io/github/v/tag/shouni/go-notifier)](https://github.com/shouni/go-notifier/tags)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-Go Notifier は、Web コンテンツを自動で抽出・整形し、複数のチャネル（Slack, Backlog）に**堅牢**に通知・投稿するための Go 言語製 CLI アプリケーションです。
+Go Notifier は、複数のチャネル（Slack, Backlog）に**堅牢**に通知・投稿するための Go 言語製 CLI アプリケーションです。
 
 **主要な機能強化点:**
 
-* **堅牢性**: 指数バックオフによるリトライ処理を備えた HTTP クライアントを使用。
-* **セキュリティ**: Backlog APIキーを URL クエリから **HTTPヘッダー** に移動。
+* **堅牢性**: **go-http-kit** を採用し、指数バックオフによるリトライ処理を備えた HTTP クライアントを使用。
+* **分離性**: **HTTP処理/リトライ** のロジックが **`go-http-kit`** に完全に分離・カプセル化されました。
 * **表現力**: Slack への通知は **Block Kit** 形式に対応。
 * **柔軟性**: タイムアウト設定、Backlog課題種別IDなどを **CLIフラグ/ショートカット** から指定可能。
 * **新機能**: **Backlogの既存課題へのコメント投稿** (`backlog comment`) に対応。
-* **新機能**: Notifierインターフェースに**ヘッダー付きテキスト送信**機能を追加し、表現力を向上。
 
 -----
 
@@ -26,7 +25,7 @@ Go Notifier は、Web コンテンツを自動で抽出・整形し、複数の�
 
 ```bash
 go build -o bin/notifier
-```
+````
 
 ### 2\. 環境変数の設定
 
@@ -36,7 +35,7 @@ go build -o bin/notifier
 | :--- | :--- | :--- | :--- |
 | **SLACK\_WEBHOOK\_URL** | Slack への通知用 Webhook URL | `slack` コマンドで必須 | `https://hooks.slack.com/services/TXXXX/...` |
 | **BACKLOG\_SPACE\_URL** | Backlog スペースのベース URL (APIパスは内部で付与) | `backlog` コマンドで必須 | `https://[space_id].backlog.jp` |
-| **BACKLOG\_API\_KEY** | Backlog への投稿に使用する API キー | `backlog` コマンドで必須 | `xxxxxxxxxxxxxxxxxxxxxxxx` |
+| **BACKLOG\_API\_KEY** | Backlog への投稿に使用する API キー (現状は **URLクエリ** で送信されます) | `backlog` コマンドで必須 | `xxxxxxxxxxxxxxxxxxxxxxxx` |
 
 ### 3\. 実行（CLIコマンド）
 
@@ -44,7 +43,7 @@ go build -o bin/notifier
 
 #### 🔹 Slack への投稿
 
-SlackNotifierは、内部でMarkdownをBlock Kitに変換します。
+SlackNotifierは、内部でMarkdownをBlock Kitに変換します。**`httpkit`** の **`PostJSONAndFetchBytes`** を利用し、堅牢に送信されます。
 
 ```bash
 # 環境変数 SLACK_WEBHOOK_URL が必要
@@ -107,8 +106,6 @@ go-notifier/
 ├── pkg/
 │   └── notifier/     # コア通知ロジック (Notifier インターフェース実装)
 │       ├── backlog.go    # Backlog 投稿/コメントクライアント
-│       ├── client.go     # ContentNotifier (Web抽出と通知の統合)
-│       ├── client_mock.go # MockNotifier (テスト用モック)
 │       └── slack.go      # Slack 通知クライアント (Block Kit)
 │   └── util/         # 汎用ヘルパー関数 (絵文字サニタイズなど)
 └── main.go           # アプリケーションのエントリーポイント (Cobraコマンドの実行)
@@ -118,7 +115,7 @@ go-notifier/
 
 本プロジェクトは、以下の主要な外部パッケージに依存しています。
 
-* **`github.com/shouni/go-web-exact`**: 堅牢な HTTP クライアント（リトライ/タイムアウト）および Web コンテンツ抽出機能を提供。
+* **`github.com/shouni/go-http-kit`**: **堅牢な HTTP クライアント（リトライ/タイムアウト、高レベルなJSONメソッド）を提供。**
 * **`github.com/slack-go/slack`**: Slack Block Kit 形式のメッセージ構築をサポート。
 * **`github.com/forPelevin/gomoji`**: Backlog投稿時の絵文字サニタイズに使用。
 * **`github.com/spf13/cobra`**: 堅牢な CLI インターフェースを提供。
@@ -128,12 +125,12 @@ go-notifier/
 ## 📚 処理フロー
 
 1.  ユーザーが `notifier [subcommand] -t "タイトル" -m "メッセージ"` を実行。
-2.  `cmd/root.go` でグローバルな `httpclient.Client` が初期化される。
+2.  `cmd/root.go` でグローバルな **`httpkit.Client`** が初期化される。
 3.  サブコマンド（例: `backlog`）が実行され、適切な `Notifier` が初期化される。
 4.  メッセージとタイトルが `Notifier` の **`SendTextWithHeader`** や **`SendIssue`** メソッドに渡される。
 5.  Backlog の場合、`SendIssue` は **プロジェクトIDと課題属性を自動で補完** する。
-6.  APIリクエストは、**指数バックオフ** リトライロジックを持つ共有 **`httpclient`** を通じて実行される。
-7.  APIキーはセキュリティのために HTTP **ヘッダー** で送信される。
+6.  APIリクエストは、**指数バックオフ** リトライロジックを持つ共有 **`httpkit.Client`** を通じて実行される。
+7.  APIリクエストは **`httpkit.DoRequest`** または **`httpkit.PostJSONAndFetchBytes`** を利用し、低レベルなHTTP処理はライブラリに任せる。
 
 -----
 

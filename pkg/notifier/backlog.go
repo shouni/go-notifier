@@ -9,14 +9,14 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/shouni/go-http-kit/pkg/httpkit"
 	"github.com/shouni/go-utils/text"
-	request "github.com/shouni/go-web-exact/v2/pkg/client"
 )
 
 // BacklogNotifier は Backlog 課題登録用の API クライアントです。
 // Notifier インターフェースを満たしますが、SendText および SendTextWithHeader は Backlog の利用方針（課題登録推奨）に基づきエラーを返します。
 type BacklogNotifier struct {
-	client  request.Client // 汎用クライアント (リトライ機能込み)
+	client  httpkit.Client // 汎用クライアント (リトライ機能込み)
 	baseURL string
 	apiKey  string
 }
@@ -69,7 +69,7 @@ func (e *BacklogError) Error() string {
 }
 
 // NewBacklogNotifier はBacklogNotifierを初期化します。
-func NewBacklogNotifier(client request.Client, spaceURL string, apiKey string) (*BacklogNotifier, error) {
+func NewBacklogNotifier(client httpkit.Client, spaceURL string, apiKey string) (*BacklogNotifier, error) {
 	if spaceURL == "" || apiKey == "" {
 		return nil, errors.New("BACKLOG_SPACE_URL および BACKLOG_API_KEY の設定が必要です")
 	}
@@ -86,8 +86,6 @@ func NewBacklogNotifier(client request.Client, spaceURL string, apiKey string) (
 	}, nil
 }
 
-// --- Notifier インターフェース実装 ---
-
 // GetProjectID は、プロジェクトキー（文字列）を受け取り、プロジェクトID（整数）を取得します。
 func (c *BacklogNotifier) GetProjectID(ctx context.Context, projectKey string) (int, error) {
 	if projectKey == "" {
@@ -96,21 +94,15 @@ func (c *BacklogNotifier) GetProjectID(ctx context.Context, projectKey string) (
 	endpoint := fmt.Sprintf("/projects/%s", projectKey)
 	fullURL := fmt.Sprintf("%s%s?apiKey=%s", c.baseURL, endpoint, c.apiKey)
 
-	data, err := c.client.FetchBytes(fullURL, ctx)
-	if err != nil {
-		// FetchBytes がすでにリトライ済みのため、そのままエラーを返す
-		return 0, fmt.Errorf("Backlog APIへのプロジェクト情報取得リクエストに失敗: %w", err)
-	}
-
-	// 3. JSONのパース
 	var projectResp BacklogProjectResponse
-	if err := json.Unmarshal(data, &projectResp); err != nil {
-		return 0, fmt.Errorf("プロジェクト情報レスポンスのパースに失敗しました (データ: %s): %w", string(data), err)
+	err := c.client.FetchAndDecodeJSON(fullURL, ctx, &projectResp)
+	if err != nil {
+		// FetchAndDecodeJSON がリトライとパースエラーを包括的に返す
+		return 0, fmt.Errorf("Backlog APIへのプロジェクト情報取得リクエストに失敗: %w", err)
 	}
 
 	// 4. IDのチェック
 	if projectResp.ID == 0 {
-		// APIが200 OKを返したがIDがない場合（通常は発生しないが安全のため）
 		return 0, fmt.Errorf("BacklogからプロジェクトIDを取得できませんでした (キー: %s)", projectKey)
 	}
 
@@ -246,16 +238,17 @@ func (c *BacklogNotifier) PostComment(ctx context.Context, issueID string, conte
 	commentData := map[string]string{
 		"content": sanitizedContent,
 	}
-	jsonBody, err := json.Marshal(commentData)
-	if err != nil {
-		return fmt.Errorf("failed to marshal comment data: %w", err)
-	}
 
 	// 3. APIリクエストの実行
 	// エンドポイント: /issues/{issueIdOrKey}/comments
 	endpoint := fmt.Sprintf("/issues/%s/comments", issueID)
 
-	// c.postRequest を使用してコメントを投稿
+	// [修正点] postRequest を使用してコメントを投稿 (内部でDoRequestを使用)
+	jsonBody, err := json.Marshal(commentData)
+	if err != nil {
+		return fmt.Errorf("failed to marshal comment data: %w", err)
+	}
+
 	err = c.postRequest(ctx, endpoint, jsonBody)
 	if err != nil {
 		return fmt.Errorf("failed to post comment to Backlog issue %s: %w", issueID, err)
@@ -269,42 +262,57 @@ func (c *BacklogNotifier) PostComment(ctx context.Context, issueID string, conte
 func (c *BacklogNotifier) postRequest(ctx context.Context, endpoint string, jsonBody []byte) error {
 	fullURL := fmt.Sprintf("%s%s?apiKey=%s", c.baseURL, endpoint, c.apiKey)
 
+	// 1. リクエストの構築
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, fullURL, bytes.NewBuffer(jsonBody))
 	if err != nil {
 		return fmt.Errorf("failed to create POST request for Backlog: %w", err)
 	}
 
-	// APIキーをヘッダーに追加
+	// 2. ヘッダー設定
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-Backlog-Api-Key", c.apiKey)
+	// Backlog APIキーはクエリパラメータで渡すため、ヘッダーの X-Backlog-Api-Key は不要
 
-	// 汎用クライアント c.client (リトライ機能込み) を使用して実行
-	resp, err := c.client.Do(req)
+	// 3. リトライ付きでの実行 (httpkit.DoRequestを使用)
+	respBodyBytes, err := c.client.DoRequest(req)
 	if err != nil {
-		return fmt.Errorf("failed to send POST request to Backlog (after retries): %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
-		return nil
+		// リトライ後の最終エラーをBacklog固有のエラーに変換
+		return c.handleAPIError(err, respBodyBytes)
 	}
 
-	// エラーレスポンスの処理
-	body, _ := request.HandleLimitedResponse(resp, 4096) // 4KBまで読み込み
+	// 成功（2xx）の場合
+	return nil
+}
 
-	var errorResp BacklogErrorResponse
-	if json.Unmarshal(body, &errorResp) == nil && len(errorResp.Errors) > 0 {
-		firstError := errorResp.Errors[0]
+// handleAPIError は、httpkit.DoRequest から返されたエラーとボディをBacklog固有のエラーに変換します。
+func (c *BacklogNotifier) handleAPIError(err error, respBody []byte) error {
+	// 1. リトライ/ネットワークエラーの場合
+	if !httpkit.IsNonRetryableError(err) {
+		// 5xx またはネットワークエラー
+		return err
+	}
 
+	// 2. NonRetryableHTTPError (4xx) の場合、ステータスコードを取得
+	var nonRetryable *httpkit.NonRetryableHTTPError
+	if errors.As(err, &nonRetryable) {
+		var errorResp BacklogErrorResponse
+
+		// Backlog エラー構造体をパース
+		if json.Unmarshal(respBody, &errorResp) == nil && len(errorResp.Errors) > 0 {
+			firstError := errorResp.Errors[0]
+			return &BacklogError{
+				StatusCode: nonRetryable.StatusCode,
+				Code:       firstError.Code,
+				Message:    firstError.Message,
+			}
+		}
+
+		// パースできなかった場合、生のボディをメッセージにする
 		return &BacklogError{
-			StatusCode: resp.StatusCode,
-			Code:       firstError.Code,
-			Message:    firstError.Message,
+			StatusCode: nonRetryable.StatusCode,
+			Message:    fmt.Sprintf("Raw Response: %s", string(respBody)),
 		}
 	}
 
-	return &BacklogError{
-		StatusCode: resp.StatusCode,
-		Message:    string(body),
-	}
+	// その他の予期せぬエラー
+	return err
 }

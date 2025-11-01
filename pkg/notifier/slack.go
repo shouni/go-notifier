@@ -1,19 +1,15 @@
 package notifier
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"log"
-	"net/http"
 	"regexp"
 	"strings"
 	"time"
 
+	"github.com/shouni/go-http-kit/pkg/httpkit"
 	"github.com/slack-go/slack"
-
-	request "github.com/shouni/go-web-exact/v2/pkg/client"
 )
 
 // SlackNotifier は Slack Webhook API と連携するためのクライアントです。
@@ -22,14 +18,14 @@ type SlackNotifier struct {
 	// WebhookURL: 必須の通知先URL
 	WebhookURL string
 	// httpClient: 汎用クライアント (リトライロジックを含む)
-	client    request.Client
+	client    httpkit.Client
 	Username  string
 	IconEmoji string
 	Channel   string
 }
 
 // NewSlackNotifier は SlackNotifier の新しいインスタンスを作成します。
-func NewSlackNotifier(client request.Client, webhookURL, username, iconEmoji, channel string) *SlackNotifier {
+func NewSlackNotifier(client httpkit.Client, webhookURL, username, iconEmoji, channel string) *SlackNotifier {
 	return &SlackNotifier{
 		WebhookURL: webhookURL,
 		client:     client,
@@ -121,34 +117,31 @@ func (s *SlackNotifier) SendTextWithHeader(ctx context.Context, headerText strin
 		},
 	}
 
-	jsonPayload, err := json.Marshal(msg)
+	// --- 3. Webhookメッセージの送信（httpkit.PostJSONAndFetchBytesを利用） ---
+
+	// PostJSONAndFetchBytes は、以下の処理を自動で行います。
+	// 1. msg を JSON に Marshal する (Marshal失敗はここでエラーを返す)
+	// 2. http.NewRequestWithContext で POST リクエストを作成
+	// 3. Headerに Content-Type: application/json を設定
+	// 4. c.DoRequest を通じてリトライ付きでリクエストを実行
+	// 5. 5xx/ネットワークエラーの場合は自動でリトライ
+	// 6. 4xx/2xx レスポンスを HandleResponse で処理し、適切なエラーを返すか nil を返す
+	respBodyBytes, err := s.client.PostJSONAndFetchBytes(s.WebhookURL, msg, ctx)
+
 	if err != nil {
-		return fmt.Errorf("failed to marshal Slack payload: %w", err)
+		// PostJSONAndFetchBytes から返されるエラーは、リトライ後の最終エラーです。
+		// エラーには、Marshal失敗、リクエスト作成失敗、リトライ上限到達、または 4xx HTTPエラーが含まれます。
+
+		// SlackのWebhookは成功時に 200 OK を返します。
+		// 4xxエラーが返された場合、そのエラーは httpkit.NonRetryableHTTPError にラップされています。
+
+		// 戻り値のエラーをラップして、呼び出し元に Slack 送信のコンテキストを与える
+		return fmt.Errorf("Slack Webhookメッセージの送信に失敗しました: %w", err)
 	}
 
-	// --- 3. Webhookメッセージの送信（httpclientを利用） ---
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, s.WebhookURL, bytes.NewReader(jsonPayload))
-	if err != nil {
-		return fmt.Errorf("Slackリクエスト作成に失敗しました: %w", err)
-	}
-	req.Header.Set("Content-Type", "application/json")
-
-	// 汎用クライアント (リトライロジックを持つ) を利用してリクエスト実行
-	resp, err := s.client.Do(req)
-	if err != nil {
-		return fmt.Errorf("Slack WebhookへのHTTPリクエストに失敗しました (リトライ後): %w", err)
-	}
-	defer resp.Body.Close()
-
-	// レスポンスステータスのチェック
-	if resp.StatusCode != http.StatusOK {
-		// ボディを読み込み、エラーメッセージとして含める（最大1024バイトまで）
-		body, _ := request.HandleLimitedResponse(resp, 1024)
-
-		return fmt.Errorf("Slack API returned non-OK status code: %d %s, Body: %s",
-			resp.StatusCode, resp.Status, strings.TrimSpace(string(body)))
-	}
+	// Slack Webhookは通常、成功時に空のボディ、または "ok" というテキストを返します。
+	// respBodyBytes にはそのボディが格納されますが、ここでは利用しないため無視します。
+	_ = respBodyBytes
 
 	return nil
 }
