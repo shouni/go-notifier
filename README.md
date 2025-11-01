@@ -25,7 +25,7 @@ Go Notifier は、複数のチャネル（Slack, Backlog）に**堅牢**に通�
 
 ```bash
 go build -o bin/notifier
-````
+```
 
 ### 2\. 環境変数の設定
 
@@ -35,7 +35,7 @@ go build -o bin/notifier
 | :--- | :--- | :--- | :--- |
 | **SLACK\_WEBHOOK\_URL** | Slack への通知用 Webhook URL | `slack` コマンドで必須 | `https://hooks.slack.com/services/TXXXX/...` |
 | **BACKLOG\_SPACE\_URL** | Backlog スペースのベース URL (APIパスは内部で付与) | `backlog` コマンドで必須 | `https://[space_id].backlog.jp` |
-| **BACKLOG\_API\_KEY** | Backlog への投稿に使用する API キー (現状は **URLクエリ** で送信されます) | `backlog` コマンドで必須 | `xxxxxxxxxxxxxxxxxxxxxxxx` |
+| **BACKLOG\_API\_KEY** | Backlog への投稿に使用する API キー | `backlog` コマンドで必須 | `xxxxxxxxxxxxxxxxxxxxxxxx` |
 
 ### 3\. 実行（CLIコマンド）
 
@@ -107,7 +107,6 @@ go-notifier/
 │   └── notifier/     # コア通知ロジック (Notifier インターフェース実装)
 │       ├── backlog.go    # Backlog 投稿/コメントクライアント
 │       └── slack.go      # Slack 通知クライアント (Block Kit)
-│   └── util/         # 汎用ヘルパー関数 (絵文字サニタイズなど)
 └── main.go           # アプリケーションのエントリーポイント (Cobraコマンドの実行)
 ```
 
