@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/shouni/go-cli-base"
-	request "github.com/shouni/go-web-exact/v2/pkg/client"
+	"github.com/shouni/go-http-kit/pkg/httpkit"
 	"github.com/spf13/cobra"
 )
 
@@ -26,7 +26,7 @@ type AppFlags struct {
 var Flags AppFlags // アプリケーション固有フラグにアクセスするためのグローバル変数
 
 // sharedClient はすべてのサブコマンドで共有される HTTP クライアント
-var sharedClient *request.Client
+var sharedClient *httpkit.Client
 
 // --- アプリケーション固有のカスタム関数 ---
 
@@ -44,7 +44,7 @@ func initAppPreRunE(cmd *cobra.Command, args []string) error {
 	// HTTPクライアントの初期化ロジック
 	timeout := time.Duration(Flags.TimeoutSec) * time.Second
 	// request.New() が *request.Client を返す前提
-	sharedClient = request.New(timeout)
+	sharedClient = httpkit.New(timeout)
 
 	// clibaseのVerboseフラグと連携したロギング
 	if clibase.Flags.Verbose {
